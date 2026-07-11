@@ -8,6 +8,15 @@ framework:
     #esi: true
     #fragments: true
 
+    http_client:
+        scoped_clients:
+            openrouter.client:
+                base_uri: 'https://openrouter.ai/api/v1/'
+                headers:
+                    Authorization: 'Bearer %env(OPENROUTER_API_KEY)%'
+                    HTTP-Referer: 'http://localhost'
+                    X-Title: 'Symfony Test Generator'
+
 when@test:
     framework:
         test: true
