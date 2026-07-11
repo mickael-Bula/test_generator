@@ -36,6 +36,7 @@ readonly class VatCalculator
     {
         $vatAmount = $this->calculateVatAmount($netAmount, $vatRate);
 
-        return $netAmount + $vatAmount;
+        // On arrondit le résultat final à 2 décimales pour nettoyer le float PHP
+        return round($netAmount + $vatAmount, 2);
     }
 }

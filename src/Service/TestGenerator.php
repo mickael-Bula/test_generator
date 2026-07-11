@@ -5,15 +5,18 @@ declare(strict_types=1);
 namespace App\Service;
 
 use App\Exception\TestGenerationException;
+use Symfony\Contracts\HttpClient\HttpClientInterface;
 use Symfony\Contracts\HttpClient\Exception\HttpExceptionInterface;
 use Symfony\Contracts\HttpClient\Exception\DecodingExceptionInterface;
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
-use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 readonly class TestGenerator
 {
     public function __construct(
-        private HttpClientInterface $openRouterClient
+        private string              $model,
+        private HttpClientInterface $openRouterClient,
+        private LlmJsonSanitizer    $jsonSanitizer,
+        private PhpTestFileBuilder  $testFileBuilder,
     ) {}
 
     /**
@@ -21,22 +24,30 @@ readonly class TestGenerator
      */
     public function generateForClass(string $classCode, string $className): string
     {
+        // 1. On donne une consigne stricte sur la structure JSON attendue
+        $roleSystemMessage = "Tu es un expert PHPUnit et Symfony. Génère un test unitaire complet. "
+            . "Tu dois TOUJOURS répondre sous la forme d'un objet JSON contenant une seule clé nommée 'test_code'. "
+            . "La valeur de 'test_code' doit être une chaîne de caractères contenant l'intégralité du code PHP "
+            . "valide du fichier de test (commençant par <?php).";
+
+        $roleUserMessage = "Génère le code du test PHPUnit pour la classe {$className} suivante :\n\n" . $classCode;
+
         try {
             $response = $this->openRouterClient->request('POST', 'chat/completions', [
                 'json' => [
-                    'model' => 'google/gemini-pro-1.5',
+                    'model' => $this->model,
                     'response_format' => ['type' => 'json_object'],
                     'messages' => [
                         [
                             'role' => 'system',
-                            'content' => "Tu es un expert PHPUnit et Symfony. Génère un test unitaire. Répond TOUJOURS sous forme d'un objet JSON contenant la clé 'test_code'."
+                            'content' => $roleSystemMessage,
                         ],
                         [
                             'role' => 'user',
-                            'content' => "Génère le test pour cette classe ({$className}) :\n\n" . $classCode
-                        ]
-                    ]
-                ]
+                            'content' => $roleUserMessage,
+                        ],
+                    ],
+                ],
             ]);
 
             // toArray() peut lever HttpExceptionInterface ou DecodingExceptionInterface
@@ -46,34 +57,57 @@ readonly class TestGenerator
                 throw new TestGenerationException("La structure de réponse d'OpenRouter est invalide.");
             }
 
-            // Décodage du JSON renvoyé par le LLM
-            $content = json_decode($data['choices'][0]['message']['content'], true, 512, JSON_THROW_ON_ERROR);
+            $rawContent = trim($data['choices'][0]['message']['content']);
 
-            if (!isset($content['test_code'])) {
-                throw new TestGenerationException("Le LLM n'a pas renvoyé la clé 'test_code' dans son JSON.");
+            // 1. Nettoyage du JSON brut via notre nouveau service dédié
+            $fixedJson = $this->jsonSanitizer->sanitizeRawJson($rawContent);
+
+            // 2. Décodage du JSON valide
+            $content = json_decode($fixedJson, true, 512, JSON_THROW_ON_ERROR);
+
+            // --- CAS A : Le modèle a respecté la consigne standard et renvoyé la clé 'test_code' ---
+            if (isset($content['test_code'])) {
+                return $this->jsonSanitizer->sanitizePhpCode($content['test_code']);
             }
 
-            return $content['test_code'];
+            // --- CAS B : Structure éclatée (class, namespace, uses, methods) déléguée au Builder ---
+            if (isset($content['methods'], $content['namespace'], $content['class'])) {
+                return $this->testFileBuilder->buildFromFragments($content);
+            }
+
+            throw new TestGenerationException("Le format JSON généré par le LLM n'est pas reconnu.");
 
         } catch (HttpExceptionInterface|DecodingExceptionInterface $e) {
-            // Attrape les erreurs 404, 401, 500, etc.
             try {
                 $statusCode = $e->getResponse()->getStatusCode();
-                $message = sprintf("Erreur HTTP %d renvoyée par OpenRouter : %s", $statusCode, $e->getMessage());
+                $message = sprintf(
+                    "Erreur HTTP %d renvoyée par OpenRouter : %s",
+                    $statusCode,
+                    $e->getMessage()
+                );
             } catch (TransportExceptionInterface $transportError) {
-                // Au cas où getStatusCode() échoue suite à un problème réseau soudain
-                $message = "Erreur HTTP renvoyée par OpenRouter, mais impossible de récupérer le code statut : " . $transportError->getMessage();
+                $message = "Erreur HTTP renvoyée par OpenRouter, mais impossible de récupérer le code statut : "
+                    . $transportError->getMessage();
             }
-
             throw new TestGenerationException($message, 0, $e);
 
         } catch (TransportExceptionInterface $e) {
-            // Attrape les erreurs réseau globales (Timeout, hôte introuvable au départ...)
-            throw new TestGenerationException("Erreur réseau lors de la communication avec OpenRouter : " . $e->getMessage(), 0, $e);
+            throw new TestGenerationException(
+                "Erreur réseau lors de la communication avec OpenRouter : " . $e->getMessage(),
+                0,
+                $e
+            );
 
         } catch (\JsonException $e) {
-            // Attrape le JSON invalide du LLM ou de la réponse globale
-            throw new TestGenerationException("Échec du décodage JSON de la réponse : " . $e->getMessage(), 0, $e);
+            $context = isset($rawContent)
+                ? " | Contenu brut reçu : " . substr($rawContent, 0, 150) . "..."
+                : "";
+
+            throw new TestGenerationException(
+                "Échec du décodage JSON : " . $e->getMessage() . $context,
+                0,
+                $e
+            );
         }
     }
 }

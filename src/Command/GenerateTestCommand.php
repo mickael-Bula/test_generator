@@ -3,12 +3,12 @@
 namespace App\Command;
 
 use App\Service\TestGenerator;
-use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Console\Input\InputArgument;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
-use Symfony\Component\Console\Style\SymfonyStyle;
 
 #[AsCommand(
     name: 'app:generate-test',
@@ -19,7 +19,8 @@ class GenerateTestCommand extends Command
     public function __construct(
         private readonly TestGenerator $testGenerator,
         private readonly string        $projectDir // Injecté automatiquement par Symfony pour connaître la racine
-    ) {
+    )
+    {
         parent::__construct();
     }
 
@@ -63,7 +64,7 @@ class GenerateTestCommand extends Command
             $testDir = dirname($testFilePath);
 
             // Créer le dossier s'il n'existe pas
-            if (!mkdir($testDir, 0777, true) && !is_dir($testDir)) {
+            if (!is_dir($testDir) && !mkdir($testDir, 0777, true) && !is_dir($testDir)) {
                 throw new \RuntimeException(sprintf('Directory "%s" was not created', $testDir));
             }
 
@@ -71,8 +72,8 @@ class GenerateTestCommand extends Command
             file_put_contents($testFilePath, $testCode);
 
             $io->success(sprintf(
-                'Le fichier de test a été généré avec succès dans : %s',
-                str_replace($this->projectDir . '/', '', $testFilePath))
+                             'Le fichier de test a été généré avec succès dans : %s',
+                             str_replace($this->projectDir . '/', '', $testFilePath))
             );
 
             return Command::SUCCESS;
