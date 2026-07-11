@@ -11,8 +11,9 @@ readonly class VatCalculator
      * grâce au "bind" configuré dans le fichier services.yaml.
      */
     public function __construct(
-        private float $defaultVatRate
-    ) {}
+        private float $defaultVatRate,
+    ) {
+    }
 
     /**
      * Calcule le montant de la TVA pour un montant Hors Taxes (HT).
@@ -23,7 +24,7 @@ readonly class VatCalculator
         $rate = $vatRate ?? $this->defaultVatRate;
 
         if ($rate < 0) {
-            throw new \InvalidArgumentException("Le taux de TVA ne peut pas être négatif.");
+            throw new \InvalidArgumentException('Le taux de TVA ne peut pas être négatif.');
         }
 
         return round(($netAmount * $rate) / 100, 2);

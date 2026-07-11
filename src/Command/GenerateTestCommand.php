@@ -3,12 +3,12 @@
 namespace App\Command;
 
 use App\Service\TestGenerator;
-use Symfony\Component\Console\Command\Command;
-use Symfony\Component\Console\Style\SymfonyStyle;
-use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Attribute\AsCommand;
+use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Console\Style\SymfonyStyle;
 
 #[AsCommand(
     name: 'app:generate-test',
@@ -18,9 +18,8 @@ class GenerateTestCommand extends Command
 {
     public function __construct(
         private readonly TestGenerator $testGenerator,
-        private readonly string        $projectDir // Injecté automatiquement par Symfony pour connaître la racine
-    )
-    {
+        private readonly string $projectDir, // Injecté automatiquement par Symfony pour connaître la racine
+    ) {
         parent::__construct();
     }
 
@@ -39,7 +38,7 @@ class GenerateTestCommand extends Command
         $filePath = $input->getArgument('filePath');
 
         // 1. Vérifier si le fichier existe
-        $fullPath = $this->projectDir . '/' . $filePath;
+        $fullPath = $this->projectDir.'/'.$filePath;
         if (!file_exists($fullPath)) {
             $io->error(sprintf('Le fichier "%s" n\'existe pas.', $fullPath));
 
@@ -72,14 +71,13 @@ class GenerateTestCommand extends Command
             file_put_contents($testFilePath, $testCode);
 
             $io->success(sprintf(
-                             'Le fichier de test a été généré avec succès dans : %s',
-                             str_replace($this->projectDir . '/', '', $testFilePath))
+                'Le fichier de test a été généré avec succès dans : %s',
+                str_replace($this->projectDir.'/', '', $testFilePath))
             );
 
             return Command::SUCCESS;
-
         } catch (\Exception $e) {
-            $io->error('Une erreur est survenue lors de la génération : ' . $e->getMessage());
+            $io->error('Une erreur est survenue lors de la génération : '.$e->getMessage());
 
             return Command::FAILURE;
         }
