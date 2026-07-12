@@ -20,6 +20,8 @@
     <testsuites>
         <testsuite name="Project Test Suite">
             <directory>tests</directory>
+            <!-- On exclut explicitement le dossier des tests dynamiques -->
+            <exclude>tests/Dynamic</exclude>
         </testsuite>
     </testsuites>
 

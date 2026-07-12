@@ -11,6 +11,7 @@ composer require --dev symfony/maker-bundle
 composer require symfony/http-client
 composer require --dev phpstan/phpstan
 composer require --dev friendsofphp/php-cs-fixer
+composer require symfony/process
 ```
 
 ## Ajout de raccourcis pour PhpStan et PHP-CS-fixer dans le composer.json

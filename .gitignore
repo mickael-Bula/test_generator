@@ -24,3 +24,6 @@
 ###> phpstan/phpstan ###
 phpstan.neon
 ###< phpstan/phpstan ###
+
+# dossier de test à ignorer
+/tests/Dynamic/

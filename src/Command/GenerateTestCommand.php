@@ -54,17 +54,16 @@ class GenerateTestCommand extends Command
         try {
             $io->comment('Envoi du code au LLM (OpenRouter/Gemini)...');
 
-            // 3. Appeler ton service
+            // 3. Appel du service de génération de test.
             $testCode = $this->testGenerator->generateForClass($classCode, $className);
 
-            // 4. Déterminer le chemin de sortie du test
-            // Version naïve : On remplace "src/" par "tests/" et on ajoute "Test.php"
+            // 4. Déterminer le chemin de sortie du test : on remplace "src/" par "tests/" et on ajoute "Test.php"
             $testFilePath = str_replace(['src/', '.php'], ['tests/', 'Test.php'], $fullPath);
             $testDir = dirname($testFilePath);
 
             // Créer le dossier s'il n'existe pas
             if (!is_dir($testDir) && !mkdir($testDir, 0777, true) && !is_dir($testDir)) {
-                throw new \RuntimeException(sprintf('Directory "%s" was not created', $testDir));
+                throw new \RuntimeException(sprintf('Le dossier "%s" n\'a pas été créé', $testDir));
             }
 
             // 5. Écrire le fichier de test
