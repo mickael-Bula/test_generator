@@ -28,9 +28,16 @@ class TestGeneratorIntegrationTest extends TestCase
 
     protected function tearDown(): void
     {
-        $dynamicTestFile = $this->projectDir.'/tests/Dynamic/VatCalculatorDynamicTest.php';
-        if (file_exists($dynamicTestFile)) {
-            unlink($dynamicTestFile);
+        // Nettoyage des fichiers temporaires générés par les deux tests
+        $filesToClean = [
+            $this->projectDir.'/tests/Dynamic/VatCalculatorDynamicTest.php',
+            $this->projectDir.'/tests/Dynamic/VatCalculatorTest.php',
+        ];
+
+        foreach ($filesToClean as $file) {
+            if (file_exists($file)) {
+                unlink($file);
+            }
         }
 
         // Optionnel : supprimer le dossier s'il est vide
@@ -93,5 +100,62 @@ class TestGeneratorIntegrationTest extends TestCase
 
         // On vérifie que le nettoyage chirurgical des antislashs a bien fonctionné
         $this->assertStringNotContainsString('App\\\Tests', $generatedCode);
+    }
+
+    /**
+     * Teste que le générateur prend correctement en compte l'option de méthode ciblée.
+     *
+     * @throws TestCorrectionException
+     * @throws TestGenerationException
+     * @throws \JsonException
+     */
+    public function testGeneratorWithSpecificMethodOption(): void
+    {
+        // --- ARRANGEMENT ---
+        // On réutilise la même fixture (qui contient toutes les méthodes),
+        // l'important est de valider que la méthode transmet correctement l'information
+        $jsonPayload = file_get_contents($this->fixturePath);
+
+        $mockedResponseBody = json_encode([
+            'choices' => [[
+                'message' => ['content' => $jsonPayload],
+            ]],
+        ], JSON_THROW_ON_ERROR);
+
+        // Le MockHttpClient va nous permettre de vérifier le contenu de la requête envoyée au LLM
+        $mockResponse = new MockResponse($mockedResponseBody, [
+            'http_code' => 200,
+            'response_headers' => ['content-type' => 'application/json'],
+        ]);
+
+        $mockHttpClient = new MockHttpClient($mockResponse, 'https://openrouter.ai/api/v1/');
+
+        $sanitizer = new LlmJsonSanitizer();
+        $fileBuilder = new PhpTestFileBuilder($sanitizer);
+        $testRunner = new PhpUnitTestRunner($this->projectDir);
+
+        $generator = new TestGenerator(
+            'gpt-4o',
+            $mockHttpClient,
+            $sanitizer,
+            $testRunner,
+            $fileBuilder
+        );
+
+        // --- EXÉCUTION ---
+        // On appelle la méthode en fournissant le 3e argument : 'calculateNetAmountFromGross'
+        $generator->generateForClass('// code de VatCalculatorDynamic', 'VatCalculatorDynamic', 'calculateNetAmountFromGross');
+
+        // --- ASSERTIONS ---
+        // 1. On récupère les options de la requête interceptée par le Mock
+        $requestOptions = $mockResponse->getRequestOptions();
+
+        // 2. Le corps de la requête JSON se trouve dans la clé 'body' ou 'json'
+        $requestBody = $requestOptions['body'] ?? '';
+
+        // On vérifie que les instructions spécifiques à la méthode ciblée sont bien présentes dans le prompt transmis
+        $this->assertNotEmpty($requestBody, 'Le corps de la requête envoyée au LLM ne doit pas être vide.');
+        $this->assertStringContainsString('calculateNetAmountFromGross()', $requestBody);
+        $this->assertStringContainsString('CONCENTRE-TOI PRIORITAIREMENT', mb_strtoupper($requestBody, 'UTF-8'));
     }
 }
