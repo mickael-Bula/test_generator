@@ -71,35 +71,46 @@ class GenerateTestCommand extends Command
             // 3. Appel du service de génération de test.
             $testCode = $this->testGenerator->generateForClass($classCode, $className, $methodName);
 
-            // On remet les bons noms pour l'environnement permanent
+            // 1. On détecte où se trouvait la classe originale (ex : App\Repository)
+            $originNamespace = $this->extractNamespaceFromCode($classCode);
+
+            // 2. On génère le namespace de test correspondant (ex : App\Tests\Repository)
+            $targetNamespace = str_replace('App\\', 'App\\Tests\\', $originNamespace);
+
+            // 3. Remplacement dynamique des en-têtes
             $testCode = str_replace(
                 [
                     'namespace App\Tests\Dynamic;',
                     sprintf('class %sDynamicTest', $className),
                 ],
                 [
-                    'namespace App\Tests\Service;', // TODO : le namespace ne sera pas systématiquement Service
+                    sprintf('namespace %s;', $targetNamespace),
                     sprintf('class %sTest', $className),
                 ],
                 $testCode
             );
 
-            // 4. Déterminer le chemin de sortie du test : on remplace "src/" par "tests/" et on ajoute "Test.php"
-            $testFilePath = str_replace(['src/', '.php'], ['tests/', 'Test.php'], $fullPath);
-            $testDir = dirname($testFilePath);
+            // 4. Déterminer le chemin de sortie du test
+            // On convertit le namespace cible (ex : App\Tests\Service) en chemin de sous-dossier (ex : Service)
+            $subFolder = str_replace(['App\\Tests\\', '\\'], ['', '/'], $targetNamespace);
 
-            // Créer le dossier s'il n'existe pas
-            if (!is_dir($testDir) && !mkdir($testDir, 0777, true) && !is_dir($testDir)) {
-                throw new \RuntimeException(sprintf('Le dossier "%s" n\'a pas été créé', $testDir));
+            // Le dossier parent final (ex : /mon-projet/tests/Service)
+            $finalDisplayDir = sprintf('%s/tests/%s', $this->projectDir, $subFolder);
+
+            // Le chemin absolu complet du fichier final (ex : /mon-projet/tests/Service/VatCalculatorTest.php)
+            $finalAbsoluteFilePath = sprintf('%s/%sTest.php', $finalDisplayDir, $className);
+
+            // Créer le dossier parent s'il n'existe pas
+            if (!is_dir($finalDisplayDir) && !mkdir($finalDisplayDir, 0777, true) && !is_dir($finalDisplayDir)) {
+                throw new \RuntimeException(sprintf('Le dossier "%s" n\'a pas été créé', $finalDisplayDir));
             }
 
-            // 5. Écrire le fichier de test
-            file_put_contents($testFilePath, $testCode);
+            // 5. Écrire le fichier de test à son emplacement définitif (chemin complet).
+            file_put_contents($finalAbsoluteFilePath, $testCode);
 
-            $io->success(sprintf(
-                'Le fichier de test a été généré avec succès dans : %s',
-                str_replace($this->projectDir.'/', '', $testFilePath))
-            );
+            // Affichage d'un chemin relatif propre dans la console
+            $relativeLogPath = str_replace($this->projectDir.'/', '', $finalAbsoluteFilePath);
+            $io->success(sprintf('Le fichier de test a été généré avec succès dans : %s', $relativeLogPath));
 
             return Command::SUCCESS;
         } catch (\Exception $e) {
@@ -107,5 +118,17 @@ class GenerateTestCommand extends Command
 
             return Command::FAILURE;
         }
+    }
+
+    /**
+     * Déduit le namespace de test à partir du namespace déclaré dans la classe testée.
+     */
+    private function extractNamespaceFromCode(string $classCode): string
+    {
+        if (preg_match('/namespace\s+([^;]+);/', $classCode, $matches)) {
+            return trim($matches[1]);
+        }
+
+        return 'App\Tests'; // Valeur par défaut.
     }
 }

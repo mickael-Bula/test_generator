@@ -91,7 +91,7 @@ class TestGeneratorIntegrationTest extends TestCase
         );
 
         // ---EXÉCUTION ---
-        $generatedCode = $generator->generateForClass('// code de VatCalculatorDynamic', 'VatCalculatorDynamic');
+        $generatedCode = $generator->generateForClass('// code de VatCalculator', 'VatCalculator');
 
         // --- ASSERTIONS ---
         $this->assertStringContainsString('<?php', $generatedCode);
@@ -144,7 +144,7 @@ class TestGeneratorIntegrationTest extends TestCase
 
         // --- EXÉCUTION ---
         // On appelle la méthode en fournissant le 3e argument : 'calculateNetAmountFromGross'
-        $generator->generateForClass('// code de VatCalculatorDynamic', 'VatCalculatorDynamic', 'calculateNetAmountFromGross');
+        $generator->generateForClass('// code de VatCalculator', 'VatCalculator', 'calculateNetAmountFromGross');
 
         // --- ASSERTIONS ---
         // 1. On récupère les options de la requête interceptée par le Mock

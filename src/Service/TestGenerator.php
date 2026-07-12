@@ -39,7 +39,7 @@ readonly class TestGenerator
 
         // On impose le dossier Dynamic comme structure d'isolation (Namespace et Nom de Classe).
         $roleUserMessage .= "\n\n⚠️ CONFIGURATION OBLIGATOIRE DU FICHIER DE TEST :\n"
-            .sprintf("- Espace de noms (namespace) : App\\Tests\\Dynamic\\%s\n", $className)
+            ."- Espace de noms (namespace) : App\\Tests\\Dynamic\n"
             .sprintf("- Nom de la classe de test : %sDynamicTest\n", $className);
 
         if (null !== $methodName) {
