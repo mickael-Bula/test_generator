@@ -7,12 +7,13 @@ use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
 #[AsCommand(
     name: 'app:generate-test',
-    description: 'Génère un test unitaire pour une classe PHP via le LLM.',
+    description: 'Génère un test unitaire PHPUnit pour une classe donnée via un LLM, avec validation automatique.',
 )]
 class GenerateTestCommand extends Command
 {
@@ -29,6 +30,11 @@ class GenerateTestCommand extends Command
             'filePath',
             InputArgument::REQUIRED,
             'Le chemin vers le fichier PHP à tester (ex: src/Service/CalculatorService.php)'
+        )->addOption(
+            'method',
+            'm',
+            InputOption::VALUE_REQUIRED,
+            'Cibler une méthode spécifique de la classe à tester'
         );
     }
 
@@ -45,9 +51,17 @@ class GenerateTestCommand extends Command
             return Command::FAILURE;
         }
 
+        // On récupère l'option (sera null si non fournie).
+        /** @var string|null $methodName */
+        $methodName = $input->getOption('method');
+
         $io->title(sprintf('Analyse et génération de test pour : %s', $filePath));
 
-        // 2. Lire le contenu du fichier (notre "parser" V1 ultra-simple)
+        if ($methodName) {
+            $io->text(sprintf('🎯 Cible spécifique : la méthode <info>%s()</info>', $methodName));
+        }
+
+        // 2. Lire le contenu du fichier (le "parser" V1 ultra-simple)
         $classCode = file_get_contents($fullPath);
         $className = pathinfo($filePath, PATHINFO_FILENAME);
 
@@ -55,7 +69,20 @@ class GenerateTestCommand extends Command
             $io->comment('Envoi du code au LLM (OpenRouter/Gemini)...');
 
             // 3. Appel du service de génération de test.
-            $testCode = $this->testGenerator->generateForClass($classCode, $className);
+            $testCode = $this->testGenerator->generateForClass($classCode, $className, $methodName);
+
+            // On remet les bons noms pour l'environnement permanent
+            $testCode = str_replace(
+                [
+                    'namespace App\Tests\Dynamic;',
+                    sprintf('class %sDynamicTest', $className),
+                ],
+                [
+                    'namespace App\Tests\Service;', // TODO : le namespace ne sera pas systématiquement Service
+                    sprintf('class %sTest', $className),
+                ],
+                $testCode
+            );
 
             // 4. Déterminer le chemin de sortie du test : on remplace "src/" par "tests/" et on ajoute "Test.php"
             $testFilePath = str_replace(['src/', '.php'], ['tests/', 'Test.php'], $fullPath);
