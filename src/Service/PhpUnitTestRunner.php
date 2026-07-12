@@ -23,7 +23,7 @@ readonly class PhpUnitTestRunner
     public function runTest(string $testCode, string $className): array
     {
         // On détermine le chemin du fichier, isolé dans un dossier "Dynamic".
-        $testFilePath = sprintf('%s/tests/Dynamic/%sTest.php', $this->projectDir, $className);
+        $testFilePath = sprintf('%s/tests/Dynamic/%sDynamicTest.php', $this->projectDir, $className);
 
         // On s'assure que le dossier existe
         $dir = dirname($testFilePath);

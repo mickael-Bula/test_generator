@@ -34,3 +34,20 @@ composer require symfony/process
     },
 ```
 
+## Installation du projet
+
+```bash
+git clone git@github.com:mickael-Bula/test_generator.git
+cd test_generator
+composer install
+```
+
+## Utiliser le projet
+
+```bash
+# Pour tester toute une classe (comportement par défaut) :
+php bin/console app:generate-test src\Service\VatCalculator.php
+
+# Pour cibler une méthode précise (forme longue ou courte)
+php bin/console app:generate-test src\Service\VatCalculator.php --method calculateNetAmountFromGross # ou -m calculateNetAmountFromGross
+```

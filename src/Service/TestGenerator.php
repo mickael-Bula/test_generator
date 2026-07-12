@@ -27,7 +27,7 @@ readonly class TestGenerator
     /**
      * @throws TestGenerationException|TestCorrectionException
      */
-    public function generateForClass(string $classCode, string $className): string
+    public function generateForClass(string $classCode, string $className, ?string $methodName = null): string
     {
         // Initialisation de l'historique de la conversation
         $roleSystemMessage = 'Tu es un expert PHPUnit et Symfony. Génère un test unitaire complet. '
@@ -36,6 +36,19 @@ readonly class TestGenerator
             .'valide du fichier de test (commençant par <?php).';
 
         $roleUserMessage = "Génère le code du test PHPUnit pour la classe {$className} suivante :\n\n".$classCode;
+
+        // On impose le dossier Dynamic comme structure d'isolation (Namespace et Nom de Classe).
+        $roleUserMessage .= "\n\n⚠️ CONFIGURATION OBLIGATOIRE DU FICHIER DE TEST :\n"
+            ."- Espace de noms (namespace) : App\\Tests\\Dynamic\n"
+            .sprintf("- Nom de la classe de test : %sDynamicTest\n", $className);
+
+        if (null !== $methodName) {
+            $roleUserMessage .= sprintf(
+                "\n\n ATTENTION : Concentre-toi PRIORITAIREMENT et UNIQUEMENT sur les scénarios de test "
+                .'pour la méthode "%s()". Ne génère pas de tests pour les autres méthodes afin de rester concis.',
+                $methodName
+            );
+        }
 
         $messages = [
             [

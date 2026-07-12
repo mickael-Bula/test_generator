@@ -40,4 +40,18 @@ readonly class VatCalculator
         // On arrondit le résultat final à 2 décimales pour nettoyer le float PHP
         return round($netAmount + $vatAmount, 2);
     }
+
+    /**
+     * Calcule le montant HT à partir d'un montant TTC (Gross).
+     *
+     * @throws \InvalidArgumentException Si le montant TTC est inférieur à 0
+     */
+    public function calculateNetAmountFromGross(float $grossAmount, float $vatRate = 20.0): float
+    {
+        if ($grossAmount < 0) {
+            throw new \InvalidArgumentException('Le montant TTC ne peut pas être négatif.');
+        }
+
+        return round($grossAmount / (1 + ($vatRate / 100)), 2);
+    }
 }
