@@ -83,6 +83,24 @@ class GenerateTestCommand extends Command
             // Le chemin absolu complet du fichier final (ex : /mon-projet/tests/Service/VatCalculatorTest.php)
             $finalAbsoluteFilePath = sprintf('%s/%sTest.php', $finalDisplayDir, $className);
 
+            // Si la commande concerne une classe complète et qu'un fichier de test existe, on lance un avertissement.
+            if (!$input->getOption('method') && file_exists($finalAbsoluteFilePath)) {
+                $io->warning('Un fichier de test existe déjà pour cette classe : '.basename($finalAbsoluteFilePath));
+
+                // On demande confirmation de manière interactive
+                $confirm = $io->confirm(
+                    'Voulez-vous écraser complètement ce fichier de test existant ? '
+                        .'(Attention, vos modifications manuelles seront perdues)',
+                    false // Par défaut, on choisit "non" par sécurité
+                );
+
+                if (!$confirm) {
+                    $io->note('Génération annulée pour préserver vos tests existants.');
+
+                    return Command::SUCCESS;
+                }
+            }
+
             // Créer le dossier parent s'il n'existe pas
             if (!is_dir($finalDisplayDir) && !mkdir($finalDisplayDir, 0777, true) && !is_dir($finalDisplayDir)) {
                 throw new \RuntimeException(sprintf('Le dossier "%s" n\'a pas été créé', $finalDisplayDir));
