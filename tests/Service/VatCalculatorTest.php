@@ -98,7 +98,7 @@ class VatCalculatorTest extends TestCase
         $this->assertEquals($expectedGrossAmount, $actualGrossAmount);
     }
 
-     /**
+    /**
      * Teste le calcul du montant TTC avec des décimales et arrondi.
      */
     public function testCalculateGrossAmountWithDecimals(): void
@@ -161,5 +161,108 @@ class VatCalculatorTest extends TestCase
         $this->expectExceptionMessage('Le montant TTC ne peut pas être négatif.');
 
         $this->vatCalculator->calculateNetAmountFromGross(-100.0, $this->defaultVatRate);
+    }
+
+    /**
+     * Teste le calcul du montant de la TVA récupérable (remboursement) avec un taux valide.
+     */
+    public function testCalculateRefundWithValidRateReturnsCorrectAmount(): void
+    {
+        $amountTtc = 120.0;
+        $taxRate = 20.0;
+        $expectedRefund = 20.0; // 120 - (120 / (1 + 20%/100)) = 120 - 100 = 20
+
+        $actualRefund = $this->vatCalculator->calculateRefund($amountTtc, $taxRate);
+
+        $this->assertEquals($expectedRefund, $actualRefund, sprintf('Expected refund of %f, but got %f', $expectedRefund, $actualRefund));
+    }
+
+    /**
+     * Teste le calcul du montant de la TVA récupérable avec un autre taux valide et des décimales.
+     */
+    public function testCalculateRefundWithDifferentValidRateAndDecimalsReturnsCorrectAmount(): void
+    {
+        $amountTtc = 115.50;
+        $taxRate = 10.0;
+        // Calcul attendu : 115.50 - (115.50 / (1 + 10%/100)) = 115.50 - (115.50 / 1.10) = 115.50 - 105.00 = 10.50
+        $expectedRefund = 10.50;
+
+        $actualRefund = $this->vatCalculator->calculateRefund($amountTtc, $taxRate);
+
+        $this->assertEquals($expectedRefund, $actualRefund, sprintf('Expected refund of %f, but got %f', $expectedRefund, $actualRefund));
+    }
+
+    /**
+     * Teste la levée d'une exception si le montant TTC est négatif pour le calcul de remboursement.
+     */
+    public function testCalculateRefundThrowsExceptionForNegativeAmountTtcWhenCalculatingRefund(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Le montant TTC ne peut pas être négatif.');
+
+        $this->vatCalculator->calculateRefund(-100.0, 20.0);
+    }
+
+    /**
+     * Teste la levée d'une exception si le taux de taxe est invalide (inférieur ou égal à 0).
+     */
+    public function testCalculateRefundThrowsExceptionForZeroTaxRateWhenCalculatingRefund(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Le taux de taxe doit être compris entre 0 et 100% (exclus).');
+
+        $this->vatCalculator->calculateRefund(100.0, 0.0);
+    }
+
+    /**
+     * Teste la levée d'une exception si le taux de taxe est invalide (supérieur ou égal à 100).
+     */
+    public function testCalculateRefundThrowsExceptionForHundredTaxRateWhenCalculatingRefund(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Le taux de taxe doit être compris entre 0 et 100% (exclus).');
+
+        $this->vatCalculator->calculateRefund(100.0, 100.0);
+    }
+
+    /**
+     * Teste la levée d'une exception si le taux de taxe est invalide (supérieur à 100).
+     */
+    public function testCalculateRefundThrowsExceptionForTaxRateAboveHundredWhenCalculatingRefund(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Le taux de taxe doit être compris entre 0 et 100% (exclus).');
+
+        $this->vatCalculator->calculateRefund(100.0, 150.0);
+    }
+
+    /**
+     * Teste le calcul du montant remboursable lorsque le montant TTC est 0.
+     */
+    public function testCalculateRefundWithZeroAmountTtcReturnsZero(): void
+    {
+        $amountTtc = 0.0;
+        $taxRate = 20.0;
+        $expectedRefund = 0.0;
+
+        $actualRefund = $this->vatCalculator->calculateRefund($amountTtc, $taxRate);
+
+        $this->assertEquals($expectedRefund, $actualRefund);
+    }
+
+    /**
+     * Teste le calcul du montant remboursable avec des valeurs très basses.
+     */
+    public function testCalculateRefundWithVerySmallValuesReturnsCorrectAmount(): void
+    {
+        $amountTtc = 0.01;
+        $taxRate = 20.0;
+        // Calcul attendu : 0.01 - (0.01 / (1 + 0.20)) = 0.01 - (0.01 / 1.20) = 0.01 - 0.00833333... = 0.00166666...
+        $expectedRefund = 0.0016666666666667;
+
+        $actualRefund = $this->vatCalculator->calculateRefund($amountTtc, $taxRate);
+
+        // La méthode arrondit à 2 décimales, donc on attend 0.00.
+        $this->assertEquals(round($expectedRefund, 2), $actualRefund);
     }
 }

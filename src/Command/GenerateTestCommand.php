@@ -132,59 +132,27 @@ class GenerateTestCommand extends Command
                 $isDirty = !empty(trim($checkClean->getOutput()));
 
                 if ($isDirty) {
-                    $io->warning('Le fichier de test existant a des modifications non validées (dirty) dans Git.');
+                    $io->warning('Le fichier de test existant a des modifications non versionnées dans Git.');
                     if (!$io->confirm('Voulez-vous continuer et écraser ces modifications temporairement ?', false)) {
                         return Command::FAILURE;
                     }
                 }
             }
 
-            // On écrit le nouveau code (il écrase l'ancien).
+            // On écrit le nouveau code, qui écrase le précédent.
             file_put_contents($finalAbsoluteFilePath, $testCode);
 
             if ($testFileExisted) {
-                $io->section('🔍 Intégration Git - Un fichier de test existait déjà');
+                $io->success('Le fichier de test existant a été mis à jour et fusionné par le LLM !');
 
-                // On affiche le diff pour que l'utilisateur voie ce que l'IA a changé/ajouté
-                $io->text('Voici le diff des modifications apportées par le LLM :');
-
-                $gitDiff = new Process(['git', 'diff', '--color', $finalAbsoluteFilePath], $this->projectDir);
-                $gitDiff->run();
-
-                $io->writeln($gitDiff->getOutput());
-
-                // On propose un choix interactif à l'utilisateur
-                $choice = $io->choice(
-                    'Que souhaitez-vous faire avec ces modifications ?',
-                    [
-                        'keep' => "Tout garder (Écraser l'ancien fichier de test par le nouveau)",
-                        'discard' => "Tout annuler (Revenir à l'état initial via Git)",
-                        'patch' => "Fusionner interactivement (Sélectionner les lignes à garder via 'git checkout -p')",
-                    ],
-                    'patch' // Par défaut, on propose la fusion interactive
-                );
-
-                if ('discard' === $choice) {
-                    $restore = new Process(['git', 'restore', $finalAbsoluteFilePath], $this->projectDir);
-                    $restore->run();
-                    $io->warning("Modifications annulées. Le fichier d'origine a été restauré.");
-                } elseif ('patch' === $choice) {
-                    $io->section('Commencer la fusion interactive');
-                    $io->note("Répondez [y] pour accepter un changement de l'IA, [n] pour le refuser et garder votre code d'origine.");
-
-                    // On lance 'git checkout -p' de manière interactive.
-                    // Note : On fait un checkout interactif de l'ancienne version sur notre fichier modifié,
-                    // ce qui permet de "rejeter" sélectivement les nouveautés de l'IA qu'on ne veut pas.
-                    $patch = new Process(['git', 'checkout', '-p', $finalAbsoluteFilePath], $this->projectDir);
-
-                    // Pour que l'interactivité fonctionne en console (Symfony Process doit lier les entrées/sorties)
-                    $patch->setTty(Process::isTtySupported());
-                    $patch->run();
-
-                    $io->success('Fusion interactive terminée !');
-                } else {
-                    $io->success('Nouveau fichier conservé intégralement.');
-                }
+                // 💡 On guide le développeur vers ses outils habituels
+                $io->section('🔍 Sécurité & Revue de code');
+                $io->info([
+                    'Le code existant a été préservé et enrichi.',
+                    "Utilisez votre IDE ou la commande 'git diff' pour inspecter les ajouts de l'IA.",
+                    "Si le résultat ne vous convient pas, vous pouvez l'annuler à tout moment avec :",
+                    '👉 git restore '.str_replace($this->projectDir.'/', '', $finalAbsoluteFilePath),
+                ]);
             } else {
                 // Cas classique : création d'un tout nouveau fichier. Affichage d'un chemin relatif propre dans la console
                 $relativeLogPath = str_replace($this->projectDir.'/', '', $finalAbsoluteFilePath);
