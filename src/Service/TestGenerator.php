@@ -27,8 +27,12 @@ readonly class TestGenerator
     /**
      * @throws TestGenerationException|TestCorrectionException
      */
-    public function generateForClass(string $classCode, string $className, ?string $methodName = null): string
-    {
+    public function generateForClass(
+        string $classCode,
+        string $className,
+        ?string $methodName = null,
+        ?string $existingTestCode = null,
+    ): string {
         // Initialisation de l'historique de la conversation
         $roleSystemMessage = 'Tu es un expert PHPUnit et Symfony. Génère un test unitaire complet. '
             ."Tu dois TOUJOURS répondre sous la forme d'un objet JSON contenant une seule clé nommée 'test_code'. "
@@ -48,6 +52,22 @@ readonly class TestGenerator
                 .'pour la méthode "%s()". Ne génère pas de tests pour les autres méthodes afin de rester concis.',
                 $methodName
             );
+        }
+
+        // Si un fichier de test existe déjà, on le fournit en contexte au LLM.
+        if (null !== $existingTestCode) {
+            $roleUserMessage .= "\n⚠️ UN FICHIER DE TEST EXISTE DÉJÀ POUR CETTE CLASSE !\n";
+            $roleUserMessage .= "Tu dois impérativement FUSIONNER tes nouveaux tests avec les tests existants fournis ci-dessous.\n";
+            $roleUserMessage .= "Consignes de fusion :\n";
+            $roleUserMessage .= "- Ne supprime et ne modifie AUCUN des tests existants.\n";
+            $roleUserMessage .= "- Ajoute la ou les nouvelles méthodes de test à la suite.\n";
+            $roleUserMessage .= "- Si nécessaire, fusionne proprement le contenu de la méthode `setUp()` sans casser l'existant.\n";
+            $roleUserMessage .= "- Combine les déclarations `use` en haut du fichier si tu ajoutes de nouvelles dépendances.\n";
+            $roleUserMessage .= sprintf("- Conserve temporairement la configuration de classe exigée (class %sDynamicTest).\n", $className);
+            $roleUserMessage .= sprintf("\nVoici le code du test existant à enrichir :\n```php\n%s\n```\n", $existingTestCode);
+        } else {
+            // Sinon, prompt classique de création.
+            $roleUserMessage .= "\nGénère un nouveau fichier de test complet à partir de zéro.\n";
         }
 
         $messages = [
