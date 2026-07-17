@@ -51,3 +51,8 @@ php bin/console app:generate-test src\Service\VatCalculator.php
 # Pour cibler une méthode précise (forme longue ou courte)
 php bin/console app:generate-test src\Service\VatCalculator.php --method calculateNetAmountFromGross # ou -m calculateNetAmountFromGross
 ```
+
+## Fonctionnalités
+
+Lors du test d'une méthode, ce dernier est ajouté au fichier de la classe testée si elle existe, sinon il est créé.
+Avant de valider les modifications, il incombe au développeur de vérifier les ajouts et suppressions avant de commiter.

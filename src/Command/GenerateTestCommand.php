@@ -10,6 +10,7 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
+use Symfony\Component\Process\Process;
 
 #[AsCommand(
     name: 'app:generate-test',
@@ -43,7 +44,7 @@ class GenerateTestCommand extends Command
         $io = new SymfonyStyle($input, $output);
         $filePath = $input->getArgument('filePath');
 
-        // 1. Vérifier si le fichier existe
+        // Vérifier si le fichier existe
         $fullPath = $this->projectDir.'/'.$filePath;
         if (!file_exists($fullPath)) {
             $io->error(sprintf('Le fichier "%s" n\'existe pas.', $fullPath));
@@ -61,23 +62,72 @@ class GenerateTestCommand extends Command
             $io->text(sprintf('🎯 Cible spécifique : la méthode <info>%s()</info>', $methodName));
         }
 
-        // 2. Lire le contenu du fichier (le "parser" V1 ultra-simple)
+        // Lire le contenu du fichier (le "parser" V1 ultra-simple)
         $classCode = file_get_contents($fullPath);
         $className = pathinfo($filePath, PATHINFO_FILENAME);
 
         try {
-            $io->comment('Envoi du code au LLM (OpenRouter/Gemini)...');
-
-            // 3. Appel du service de génération de test.
-            $testCode = $this->testGenerator->generateForClass($classCode, $className, $methodName);
-
-            // 1. On détecte où se trouvait la classe originale (ex : App\Repository)
+            // On calcule d'abord où devrait se trouver le fichier de test permanent
             $originNamespace = $this->extractNamespaceFromCode($classCode);
 
-            // 2. On génère le namespace de test correspondant (ex : App\Tests\Repository)
+            // On génère le namespace de test correspondant (ex : App\Tests\Repository)
             $targetNamespace = str_replace('App\\', 'App\\Tests\\', $originNamespace);
 
-            // 3. Remplacement dynamique des en-têtes
+            // Déterminer le chemin de sortie du test
+            // On convertit le namespace cible (ex : App\Tests\Service) en chemin de sous-dossier (ex : Service)
+            $subFolder = str_replace(['App\\Tests\\', '\\'], ['', '/'], $targetNamespace);
+
+            // Le dossier parent final (ex : /mon-projet/tests/Service)
+            $finalDisplayDir = sprintf('%s/tests/%s', $this->projectDir, $subFolder);
+
+            // Le chemin absolu complet du fichier final (ex : /mon-projet/tests/Service/VatCalculatorTest.php)
+            $finalAbsoluteFilePath = sprintf('%s/%sTest.php', $finalDisplayDir, $className);
+
+            // Si la commande concerne une classe complète et qu'un fichier de test existe, on lance un avertissement.
+            if (!$input->getOption('method') && file_exists($finalAbsoluteFilePath)) {
+                $io->warning('Un fichier de test existe déjà pour cette classe : '.basename($finalAbsoluteFilePath));
+
+                // On demande confirmation de manière interactive
+                $confirm = $io->confirm(
+                    'Voulez-vous lancer la fusion automatique par le LLM sur ce fichier existant ?',
+                    false // Par défaut, on choisit "non" par sécurité
+                );
+
+                if (!$confirm) {
+                    $io->note('Génération annulée pour préserver vos tests existants.');
+
+                    return Command::SUCCESS;
+                }
+            }
+
+            // Créer le dossier parent s'il n'existe pas
+            if (!is_dir($finalDisplayDir) && !mkdir($finalDisplayDir, 0777, true) && !is_dir($finalDisplayDir)) {
+                throw new \RuntimeException(sprintf('Le dossier "%s" n\'a pas été créé', $finalDisplayDir));
+            }
+
+            // Est-ce qu'un test existe déjà ? Si oui, on charge son code
+            $existingTestCode = null;
+            $testFileExisted = file_exists($finalAbsoluteFilePath);
+            if ($testFileExisted) {
+                $io->note('Un fichier de test existant a été détecté. Il va être transmis au LLM pour fusion.');
+                $existingTestCode = file_get_contents($finalAbsoluteFilePath);
+
+                // Étape cruciale : Pour que le LLM puisse travailler sans être perturbé,
+                // on fait l'inverse du nettoyage : on remet temporairement le namespace et la classe
+                // au format "Dynamic" dans le code qu'on lui envoie !
+                $existingTestCode = str_replace(
+                    [sprintf('namespace %s;', $targetNamespace), sprintf('class %sTest', $className)],
+                    ['namespace App\Tests\Dynamic;', sprintf('class %sDynamicTest', $className)],
+                    $existingTestCode
+                );
+            }
+
+            $io->comment('Envoi du code au LLM...');
+
+            // Appel du service de génération de test.
+            $testCode = $this->testGenerator->generateForClass($classCode, $className, $methodName, $existingTestCode);
+
+            // Remplacement dynamique des en-têtes
             $testCode = str_replace(
                 [
                     'namespace App\Tests\Dynamic;',
@@ -90,27 +140,41 @@ class GenerateTestCommand extends Command
                 $testCode
             );
 
-            // 4. Déterminer le chemin de sortie du test
-            // On convertit le namespace cible (ex : App\Tests\Service) en chemin de sous-dossier (ex : Service)
-            $subFolder = str_replace(['App\\Tests\\', '\\'], ['', '/'], $targetNamespace);
+            // Écrire le fichier de test à son emplacement définitif (chemin complet).
+            if ($testFileExisted) {
+                // Optionnel : On peut s'assurer que le fichier existant est actuellement propre dans Git
+                // pour éviter de mélanger des modifications locales non commitées avec la génération LLM.
+                $checkClean = new Process(['git', 'status', '--porcelain', $finalAbsoluteFilePath], $this->projectDir);
+                $checkClean->run();
+                $isDirty = !empty(trim($checkClean->getOutput()));
 
-            // Le dossier parent final (ex : /mon-projet/tests/Service)
-            $finalDisplayDir = sprintf('%s/tests/%s', $this->projectDir, $subFolder);
-
-            // Le chemin absolu complet du fichier final (ex : /mon-projet/tests/Service/VatCalculatorTest.php)
-            $finalAbsoluteFilePath = sprintf('%s/%sTest.php', $finalDisplayDir, $className);
-
-            // Créer le dossier parent s'il n'existe pas
-            if (!is_dir($finalDisplayDir) && !mkdir($finalDisplayDir, 0777, true) && !is_dir($finalDisplayDir)) {
-                throw new \RuntimeException(sprintf('Le dossier "%s" n\'a pas été créé', $finalDisplayDir));
+                if ($isDirty) {
+                    $io->warning('Le fichier de test existant a des modifications non versionnées dans Git.');
+                    if (!$io->confirm('Voulez-vous continuer et écraser ces modifications temporairement ?', false)) {
+                        return Command::FAILURE;
+                    }
+                }
             }
 
-            // 5. Écrire le fichier de test à son emplacement définitif (chemin complet).
+            // On écrit le nouveau code, qui écrase le précédent.
             file_put_contents($finalAbsoluteFilePath, $testCode);
 
-            // Affichage d'un chemin relatif propre dans la console
-            $relativeLogPath = str_replace($this->projectDir.'/', '', $finalAbsoluteFilePath);
-            $io->success(sprintf('Le fichier de test a été généré avec succès dans : %s', $relativeLogPath));
+            if ($testFileExisted) {
+                $io->success('Le fichier de test existant a été mis à jour et fusionné par le LLM !');
+
+                // 💡 On guide le développeur vers ses outils habituels
+                $io->section('🔍 Sécurité & Revue de code');
+                $io->info([
+                    'Le code existant a été préservé et enrichi.',
+                    "Utilisez votre IDE ou la commande 'git diff' pour inspecter les ajouts de l'IA.",
+                    "Si le résultat ne vous convient pas, vous pouvez l'annuler à tout moment avec :",
+                    '👉 git restore '.str_replace($this->projectDir.'/', '', $finalAbsoluteFilePath),
+                ]);
+            } else {
+                // Cas classique : création d'un tout nouveau fichier. Affichage d'un chemin relatif propre dans la console
+                $relativeLogPath = str_replace($this->projectDir.'/', '', $finalAbsoluteFilePath);
+                $io->success(sprintf('Le fichier de test a été généré avec succès dans : %s', $relativeLogPath));
+            }
 
             return Command::SUCCESS;
         } catch (\Exception $e) {

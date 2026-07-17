@@ -27,8 +27,12 @@ readonly class TestGenerator
     /**
      * @throws TestGenerationException|TestCorrectionException
      */
-    public function generateForClass(string $classCode, string $className, ?string $methodName = null): string
-    {
+    public function generateForClass(
+        string $classCode,
+        string $className,
+        ?string $methodName = null,
+        ?string $existingTestCode = null,
+    ): string {
         // Initialisation de l'historique de la conversation
         $roleSystemMessage = 'Tu es un expert PHPUnit et Symfony. Génère un test unitaire complet. '
             ."Tu dois TOUJOURS répondre sous la forme d'un objet JSON contenant une seule clé nommée 'test_code'. "
@@ -42,12 +46,43 @@ readonly class TestGenerator
             ."- Espace de noms (namespace) : App\\Tests\\Dynamic\n"
             .sprintf("- Nom de la classe de test : %sDynamicTest\n", $className);
 
-        if (null !== $methodName) {
-            $roleUserMessage .= sprintf(
-                "\n\n ATTENTION : Concentre-toi PRIORITAIREMENT et UNIQUEMENT sur les scénarios de test "
-                .'pour la méthode "%s()". Ne génère pas de tests pour les autres méthodes afin de rester concis.',
-                $methodName
-            );
+        // Si un fichier de test existe déjà (FUSION).
+        if (null !== $existingTestCode) {
+            $roleUserMessage .= "\n⚠️ UN FICHIER DE TEST EXISTE DÉJÀ POUR CETTE CLASSE !\n";
+            $roleUserMessage .= "Tu dois impérativement FUSIONNER tes nouveaux tests avec le code existant fourni ci-dessous.\n";
+            $roleUserMessage .= "Consignes de fusion :\n";
+
+            if (null !== $methodName) {
+                $roleUserMessage .= sprintf(
+                    "- **Règle d'Idempotence (Priorité Haute) :** Inspecte minutieusement le code existant ci-dessous. Si des méthodes de test couvrant déjà spécifiquement la méthode `%s()` sont présentes :\n"
+                    ."  a. NE DUPLIQUE PAS les tests. N'ajoute pas de méthodes ayant le même but ou des noms redondants.\n"
+                    ."  b. Évalue si tes nouvelles propositions de tests apportent une réelle valeur ajoutée (ex. un cas limite oublié). Si oui, mets à jour ou remplace proprement les tests existants de cette méthode.\n"
+                    ."  c. Si les tests existants pour cette méthode sont déjà complets et optimaux, renvoie le fichier d'origine sans le modifier inutilement.\n",
+                    $methodName
+                );
+                $roleUserMessage .= "- **Pour les autres méthodes :** Ne supprime et ne modifie AUCUN des tests existants qui concernent d'autres méthodes de la classe.\n";
+            } else {
+                // Fusion globale (sans méthode spécifique)
+                $roleUserMessage .= "- Ne supprime et ne modifie AUCUN des tests existants.\n";
+            }
+
+            $roleUserMessage .= "- S'il s'agit de nouveaux scénarios à ajouter, insère la ou les nouvelles méthodes de test à la suite.\n";
+            $roleUserMessage .= "- Si nécessaire, fusionne proprement le contenu de la méthode `setUp()` sans casser l'existant.\n";
+            $roleUserMessage .= "- Combine les déclarations `use` en haut du fichier si tu ajoutes de nouvelles dépendances.\n";
+            $roleUserMessage .= sprintf("- Conserve temporairement la configuration de classe exigée (class %sDynamicTest).\n", $className);
+            $roleUserMessage .= sprintf("\nVoici le code du test existant à enrichir :\n```php\n%s\n```\n", $existingTestCode);
+
+        } else {
+            // Si le fichier de test n'existe pas encore (CRÉATION).
+            $roleUserMessage .= "\nGénère un nouveau fichier de test complet à partir de zéro.\n";
+
+            if (null !== $methodName) {
+                $roleUserMessage .= sprintf(
+                    "\n🎯 ATTENTION : Concentre-toi PRIORITAIREMENT et UNIQUEMENT sur les scénarios de test "
+                    .'pour la méthode "%s()". Ne génère pas de tests pour les autres méthodes afin de rester concis.\n',
+                    $methodName
+                );
+            }
         }
 
         $messages = [

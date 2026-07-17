@@ -54,4 +54,28 @@ readonly class VatCalculator
 
         return round($grossAmount / (1 + ($vatRate / 100)), 2);
     }
+
+    /**
+     * Calcule le montant de la TVA récupérable (remboursement) à partir d'un montant TTC.
+     *
+     * @param float $amountTtc Le montant toutes taxes comprises
+     * @param float $taxRate   Le taux de taxe en pourcentage (ex: 20.0 pour 20%)
+     *
+     * @throws \InvalidArgumentException Si le montant TTC est négatif ou si le taux est invalide
+     */
+    public function calculateRefund(float $amountTtc, float $taxRate): float
+    {
+        if ($amountTtc < 0) {
+            throw new \InvalidArgumentException('Le montant TTC ne peut pas être négatif.');
+        }
+
+        if ($taxRate <= 0 || $taxRate >= 100) {
+            throw new \InvalidArgumentException('Le taux de taxe doit être compris entre 0 et 100% (exclus).');
+        }
+
+        // Formule : TVA = TTC - (TTC / (1 + (Taux / 100)))
+        $baseHt = $amountTtc / (1 + ($taxRate / 100));
+
+        return round($amountTtc - $baseHt, 2);
+    }
 }
