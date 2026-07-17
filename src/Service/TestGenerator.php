@@ -71,7 +71,6 @@ readonly class TestGenerator
             $roleUserMessage .= "- Combine les déclarations `use` en haut du fichier si tu ajoutes de nouvelles dépendances.\n";
             $roleUserMessage .= sprintf("- Conserve temporairement la configuration de classe exigée (class %sDynamicTest).\n", $className);
             $roleUserMessage .= sprintf("\nVoici le code du test existant à enrichir :\n```php\n%s\n```\n", $existingTestCode);
-
         } else {
             // Si le fichier de test n'existe pas encore (CRÉATION).
             $roleUserMessage .= "\nGénère un nouveau fichier de test complet à partir de zéro.\n";

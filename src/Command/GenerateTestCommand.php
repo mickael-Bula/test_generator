@@ -18,6 +18,8 @@ use Symfony\Component\Process\Process;
 )]
 class GenerateTestCommand extends Command
 {
+    private SymfonyStyle $io;
+
     public function __construct(
         private readonly TestGenerator $testGenerator,
         private readonly string $projectDir, // Injecté automatiquement par Symfony pour connaître la racine
@@ -41,13 +43,13 @@ class GenerateTestCommand extends Command
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        $io = new SymfonyStyle($input, $output);
+        $this->io = new SymfonyStyle($input, $output);
         $filePath = $input->getArgument('filePath');
 
         // Vérifier si le fichier existe
         $fullPath = $this->projectDir.'/'.$filePath;
         if (!file_exists($fullPath)) {
-            $io->error(sprintf('Le fichier "%s" n\'existe pas.', $fullPath));
+            $this->io->error(sprintf('Le fichier "%s" n\'existe pas.', $fullPath));
 
             return Command::FAILURE;
         }
@@ -56,10 +58,10 @@ class GenerateTestCommand extends Command
         /** @var string|null $methodName */
         $methodName = $input->getOption('method');
 
-        $io->title(sprintf('Analyse et génération de test pour : %s', $filePath));
+        $this->io->title(sprintf('Analyse et génération de test pour : %s', $filePath));
 
         if ($methodName) {
-            $io->text(sprintf('🎯 Cible spécifique : la méthode <info>%s()</info>', $methodName));
+            $this->io->text(sprintf('🎯 Cible spécifique : la méthode <info>%s()</info>', $methodName));
         }
 
         // Lire le contenu du fichier (le "parser" V1 ultra-simple)
@@ -85,16 +87,16 @@ class GenerateTestCommand extends Command
 
             // Si la commande concerne une classe complète et qu'un fichier de test existe, on lance un avertissement.
             if (!$input->getOption('method') && file_exists($finalAbsoluteFilePath)) {
-                $io->warning('Un fichier de test existe déjà pour cette classe : '.basename($finalAbsoluteFilePath));
+                $this->io->warning('Un fichier de test existe déjà pour cette classe : '.basename($finalAbsoluteFilePath));
 
                 // On demande confirmation de manière interactive
-                $confirm = $io->confirm(
+                $confirm = $this->io->confirm(
                     'Voulez-vous lancer la fusion automatique par le LLM sur ce fichier existant ?',
                     false // Par défaut, on choisit "non" par sécurité
                 );
 
                 if (!$confirm) {
-                    $io->note('Génération annulée pour préserver vos tests existants.');
+                    $this->io->note('Génération annulée pour préserver vos tests existants.');
 
                     return Command::SUCCESS;
                 }
@@ -109,62 +111,37 @@ class GenerateTestCommand extends Command
             $existingTestCode = null;
             $testFileExisted = file_exists($finalAbsoluteFilePath);
             if ($testFileExisted) {
-                $io->note('Un fichier de test existant a été détecté. Il va être transmis au LLM pour fusion.');
+                // On vérifie d'abord si le fichier Git est propre !
+                if (Command::FAILURE === $this->checkTestFileIsClean($finalAbsoluteFilePath)) {
+                    return Command::FAILURE;
+                }
+
+                $this->io->note('Un fichier de test existant a été détecté. Il va être transmis au LLM pour fusion.');
                 $existingTestCode = file_get_contents($finalAbsoluteFilePath);
 
                 // Étape cruciale : Pour que le LLM puisse travailler sans être perturbé,
                 // on fait l'inverse du nettoyage : on remet temporairement le namespace et la classe
                 // au format "Dynamic" dans le code qu'on lui envoie !
-                $existingTestCode = str_replace(
-                    [sprintf('namespace %s;', $targetNamespace), sprintf('class %sTest', $className)],
-                    ['namespace App\Tests\Dynamic;', sprintf('class %sDynamicTest', $className)],
-                    $existingTestCode
-                );
+                $existingTestCode = $this->replaceDynamicHeadersInExistingTestCode($existingTestCode, $targetNamespace, $className);
             }
 
-            $io->comment('Envoi du code au LLM...');
+            $this->io->comment('Envoi du code au LLM...');
 
             // Appel du service de génération de test.
             $testCode = $this->testGenerator->generateForClass($classCode, $className, $methodName, $existingTestCode);
 
             // Remplacement dynamique des en-têtes
-            $testCode = str_replace(
-                [
-                    'namespace App\Tests\Dynamic;',
-                    sprintf('class %sDynamicTest', $className),
-                ],
-                [
-                    sprintf('namespace %s;', $targetNamespace),
-                    sprintf('class %sTest', $className),
-                ],
-                $testCode
-            );
-
-            // Écrire le fichier de test à son emplacement définitif (chemin complet).
-            if ($testFileExisted) {
-                // Optionnel : On peut s'assurer que le fichier existant est actuellement propre dans Git
-                // pour éviter de mélanger des modifications locales non commitées avec la génération LLM.
-                $checkClean = new Process(['git', 'status', '--porcelain', $finalAbsoluteFilePath], $this->projectDir);
-                $checkClean->run();
-                $isDirty = !empty(trim($checkClean->getOutput()));
-
-                if ($isDirty) {
-                    $io->warning('Le fichier de test existant a des modifications non versionnées dans Git.');
-                    if (!$io->confirm('Voulez-vous continuer et écraser ces modifications temporairement ?', false)) {
-                        return Command::FAILURE;
-                    }
-                }
-            }
+            $testCode = $this->replaceDynamicHeadersInTestCode($testCode, $targetNamespace, $className);
 
             // On écrit le nouveau code, qui écrase le précédent.
             file_put_contents($finalAbsoluteFilePath, $testCode);
 
             if ($testFileExisted) {
-                $io->success('Le fichier de test existant a été mis à jour et fusionné par le LLM !');
+                $this->io->success('Le fichier de test existant a été mis à jour et fusionné par le LLM !');
 
                 // 💡 On guide le développeur vers ses outils habituels
-                $io->section('🔍 Sécurité & Revue de code');
-                $io->info([
+                $this->io->section('🔍 Sécurité & Revue de code');
+                $this->io->info([
                     'Le code existant a été préservé et enrichi.',
                     "Utilisez votre IDE ou la commande 'git diff' pour inspecter les ajouts de l'IA.",
                     "Si le résultat ne vous convient pas, vous pouvez l'annuler à tout moment avec :",
@@ -173,12 +150,12 @@ class GenerateTestCommand extends Command
             } else {
                 // Cas classique : création d'un tout nouveau fichier. Affichage d'un chemin relatif propre dans la console
                 $relativeLogPath = str_replace($this->projectDir.'/', '', $finalAbsoluteFilePath);
-                $io->success(sprintf('Le fichier de test a été généré avec succès dans : %s', $relativeLogPath));
+                $this->io->success(sprintf('Le fichier de test a été généré avec succès dans : %s', $relativeLogPath));
             }
 
             return Command::SUCCESS;
         } catch (\Exception $e) {
-            $io->error('Une erreur est survenue lors de la génération : '.$e->getMessage());
+            $this->io->error('Une erreur est survenue lors de la génération : '.$e->getMessage());
 
             return Command::FAILURE;
         }
@@ -194,5 +171,61 @@ class GenerateTestCommand extends Command
         }
 
         return 'App\Tests'; // Valeur par défaut.
+    }
+
+    /**
+     * Remplacement du namespace et du nom de la classe pour enregistrement dans le dossier de test temporaire.
+     */
+    private function replaceDynamicHeadersInExistingTestCode(string $existingTestCode, string $targetNamespace, string $className): string
+    {
+        return str_replace(
+            [
+                sprintf('namespace %s;', $targetNamespace),
+                sprintf('class %sTest', $className),
+            ],
+            [
+                'namespace App\Tests\Dynamic;',
+                sprintf('class %sDynamicTest', $className),
+            ],
+            $existingTestCode
+        );
+    }
+
+    /**
+     * Remplacement dynamique du namespace et du nom de la classe pour enregistrement dans le dossier final.
+     */
+    private function replaceDynamicHeadersInTestCode(string $testCode, string $targetNamespace, string $className): string
+    {
+        return str_replace(
+            [
+                'namespace App\Tests\Dynamic;',
+                sprintf('class %sDynamicTest', $className),
+            ],
+            [
+                sprintf('namespace %s;', $targetNamespace),
+                sprintf('class %sTest', $className),
+            ],
+            $testCode
+        );
+    }
+
+    /**
+     * On s'assure de ne pas mélanger des modifications locales non commitées avec la génération LLM.
+     * Si des modificaitons non suivies dans Git existent, on prévient l'utilisateur.
+     */
+    private function checkTestFileIsClean(string $path): int
+    {
+        $checkClean = new Process(['git', 'status', '--porcelain', $path], $this->projectDir);
+        $checkClean->run();
+        $isDirty = !empty(trim($checkClean->getOutput()));
+
+        if ($isDirty) {
+            $this->io->warning('Le fichier de test existant a des modifications non versionnées dans Git.');
+            if (!$this->io->confirm('Voulez-vous continuer et écraser ces modifications temporairement ?', false)) {
+                return Command::FAILURE;
+            }
+        }
+
+        return Command::SUCCESS;
     }
 }
