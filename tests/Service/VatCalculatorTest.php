@@ -265,4 +265,57 @@ class VatCalculatorTest extends TestCase
         // La méthode arrondit à 2 décimales, donc on attend 0.00.
         $this->assertEquals(round($expectedRefund, 2), $actualRefund);
     }
+
+    /**
+     * Teste le calcul du montant HT à partir de 0 TTC.
+     */
+    public function testCalculateNetAmountFromGrossWithZeroGrossAmount(): void
+    {
+        $grossAmount = 0.0;
+        $expectedNetAmount = 0.0;
+
+        $actualNetAmount = $this->vatCalculator->calculateNetAmountFromGross($grossAmount, $this->defaultVatRate);
+
+        $this->assertEquals($expectedNetAmount, $actualNetAmount);
+    }
+
+    /**
+     * Teste le calcul du montant TTC à partir de 0 HT.
+     */
+    public function testCalculateGrossAmountWithZeroNetAmount(): void
+    {
+        $netAmount = 0.0;
+        $expectedGrossAmount = 0.0;
+
+        $actualGrossAmount = $this->vatCalculator->calculateGrossAmount($netAmount);
+
+        $this->assertEquals($expectedGrossAmount, $actualGrossAmount);
+    }
+
+    /**
+     * Teste le calcul du montant de TVA à partir de 0 HT.
+     */
+    public function testCalculateVatAmountWithZeroNetAmount(): void
+    {
+        $netAmount = 0.0;
+        $expectedVatAmount = 0.0;
+
+        $actualVatAmount = $this->vatCalculator->calculateVatAmount($netAmount);
+
+        $this->assertEquals($expectedVatAmount, $actualVatAmount);
+    }
+
+    /**
+     * Teste le calcul du montant remboursable à partir d'un montant TTC nul.
+     */
+    public function testCalculateRefundWithZeroTtcAmount(): void
+    {
+        $amountTtc = 0.0;
+        $taxRate = 20.0;
+        $expectedRefund = 0.0;
+
+        $actualRefund = $this->vatCalculator->calculateRefund($amountTtc, $taxRate);
+
+        $this->assertEquals($expectedRefund, $actualRefund);
+    }
 }

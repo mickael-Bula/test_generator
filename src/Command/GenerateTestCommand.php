@@ -89,8 +89,7 @@ class GenerateTestCommand extends Command
 
                 // On demande confirmation de manière interactive
                 $confirm = $io->confirm(
-                    'Voulez-vous écraser complètement ce fichier de test existant ? '
-                        .'(Attention, vos modifications manuelles seront perdues)',
+                    'Voulez-vous lancer la fusion automatique par le LLM sur ce fichier existant ?',
                     false // Par défaut, on choisit "non" par sécurité
                 );
 
