@@ -30,4 +30,28 @@ class LlmJsonSanitizer
     {
         return str_replace('\\\\', '\\', $phpCode);
     }
+
+    /**
+     * Supprime les blocs de code markdown si présents.
+     * Remplace les vrais caractères de contrôle (sauts de ligne bruts, tabulations)
+     * par leurs versions échappées valides en JSON, sauf si le format est déjà correct.
+     */
+    public function sanitizeJson($jsonString): string
+    {
+        $jsonString = trim($jsonString);
+
+        // 1. Réparer les antislashs PHP mal échappés (ex: App\Service)
+        // Le pattern cible le contenu entre guillemets sans créer d'ambiguïté pour l'EDI
+        $jsonString = preg_replace_callback('/"([^"\\\\]*(?:\\\\[\\s\\S][^"\\\\]*)*)"/', static function ($matches) {
+            $content = $matches[1];
+
+            // Protège les échappements JSON légitimes, double les autres antislashs
+            return '"'.preg_replace('/\\\(?!["\\\\\/bfnrtu])/i', '\\\\\\\\', $content).'"';
+        }, $jsonString);
+
+        // 2. Remplacer les vrais retours à la ligne physiques résiduels par "\n"
+        return preg_replace_callback('/"([^"\\\\]*(?:\\\\[\\s\\S][^"\\\\]*)*)"/', static function ($matches) {
+            return '"'.str_replace(["\r\n", "\n", "\r"], '\\n', $matches[1]).'"';
+        }, $jsonString);
+    }
 }
