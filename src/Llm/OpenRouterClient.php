@@ -32,6 +32,7 @@ readonly class OpenRouterClient implements LlmClientInterface
                     'model' => $model,
                     'response_format' => ['type' => 'json_object'],
                     'messages' => $messages,
+                    'temperature' => 0.0,      // Assure un comportement déterministe identique à Ollama
                 ],
             ]);
 

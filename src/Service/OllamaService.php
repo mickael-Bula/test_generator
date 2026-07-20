@@ -26,20 +26,26 @@ readonly class OllamaService
      * @throws DecodingExceptionInterface
      * @throws ClientExceptionInterface
      */
-    public function generateResponse(string $prompt, string $model = 'qwen2.5-coder:1.5b'): string
+    public function generateResponse(array $messages, string $model): string
     {
-        $response = $this->httpClient->request('POST', $this->ollamaApiUrl.'/api/generate', [
+        $response = $this->httpClient->request('POST', $this->ollamaApiUrl.'/api/chat', [
             'json' => [
                 'model' => $model,
-                'prompt' => $prompt,
+                'messages' => $messages, // Tableau des messages structurés (system + user)
                 'stream' => false, // Désactive le streaming pour recevoir la réponse d'un bloc
                 'format' => 'json', // Force Ollama à répondre un JSON valide au niveau de sa structure
+                'options' => [
+                    'num_predict' => 1024, // Force Ollama à ne PAS couper le code PHP au milieu
+                    'num_ctx' => 4096, // Alloue assez de mémoire de contexte pour le code + historique
+                    'temperature' => 0.0,  // Température basse pour limiter les hallucinations de syntaxe
+                ],
             ],
-            'timeout' => 600,
+            'timeout' => 600.0, // Laisse dix minutes au LLM pour répondre (réponse lente en local).
         ]);
 
         $data = $response->toArray();
 
-        return $data['response'] ?? '';
+        // L'API /api/chat retourne le texte dans ['message']['content'].
+        return $data['message']['content'] ?? '';
     }
 }

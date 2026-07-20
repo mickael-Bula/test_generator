@@ -28,23 +28,8 @@ readonly class OllamaClient implements LlmClientInterface
     public function call(array $messages, string $model): string
     {
         try {
-            // Conversion du tableau de messages en chaîne textuelle pour Ollama
-            $conversation = [];
-            foreach ($messages as $message) {
-                $prefix = match ($message['role']) {
-                    'system' => 'Contexte Système',
-                    'user' => 'Utilisateur',
-                    'assistant' => 'Assistant',
-                    default => 'Note',
-                };
-                $conversation[] = sprintf('%s: %s', $prefix, $message['content']);
-            }
-
-            // Génération du prompt complet pour Ollama.
-            $fullPrompt = implode("\n\n", $conversation)."\n\nAssistant (Réponds au format JSON) :";
-
             // Génération du code de test par le LLM.
-            $rawResponse = $this->ollamaService->generateResponse($fullPrompt, $model);
+            $rawResponse = $this->ollamaService->generateResponse($messages, $model);
 
             // Nettoyage de la réponse pour obtenir du JSON valide.
             $rawResponse = $this->jsonSanitizer->sanitizeJson($rawResponse);

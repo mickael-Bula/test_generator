@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Tests\Fixtures;
+namespace App\Tests\Service;
 
 use App\Service\VatCalculator;
 use PHPUnit\Framework\TestCase;
