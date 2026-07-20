@@ -20,6 +20,8 @@ readonly class OllamaService
     }
 
     /**
+     * @param array<int, array{role: string, content: string}> $messages
+     *
      * @throws TransportExceptionInterface
      * @throws ServerExceptionInterface
      * @throws RedirectionExceptionInterface

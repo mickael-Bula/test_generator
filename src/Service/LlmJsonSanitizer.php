@@ -36,7 +36,7 @@ class LlmJsonSanitizer
      * Remplace les vrais caractères de contrôle (sauts de ligne bruts, tabulations)
      * par leurs versions échappées valides en JSON, sauf si le format est déjà correct.
      */
-    public function sanitizeJson($jsonString): string
+    public function sanitizeJson(string $jsonString): string
     {
         $jsonString = trim($jsonString);
 
