@@ -17,6 +17,7 @@ services:
         bind:
             string $model: '%env(MODEL)%'
             string $projectDir: '%kernel.project_dir%'
+            string $ollamaApiUrl: '%env(OLLAMA_API_URL)%'
             float $defaultVatRate: '%app.default_vat_rate%'
 
     # makes classes in src/ available to be used as services
@@ -28,7 +29,20 @@ services:
             - '../src/Entity/'
             - '../src/Kernel.php'
 
-    # Service de génération de tests
-    App\Service\TestGenerator:
+    # Configuration spécifique pour le client OpenRouter
+    App\Llm\OpenRouterClient:
+        public: true
         arguments:
             $openRouterClient: '@openrouter.client'
+
+    # Configuration spécifique pour le client Ollama
+    App\Llm\OllamaClient:
+        public: true
+
+    # On utilise le container pour récupérer le bon service au runtime
+    App\Llm\LlmClientInterface:
+        factory: ['@service_container', 'get']
+        arguments:
+            - '%env(resolve:LLM_PROVIDER_SERVICE)%'
+
+    App\Service\TestGenerator: ~

@@ -6,18 +6,14 @@ namespace App\Service;
 
 use App\Exception\TestCorrectionException;
 use App\Exception\TestGenerationException;
-use Symfony\Contracts\HttpClient\Exception\DecodingExceptionInterface;
-use Symfony\Contracts\HttpClient\Exception\HttpExceptionInterface;
-use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
-use Symfony\Contracts\HttpClient\HttpClientInterface;
+use App\Llm\LlmClientInterface;
 
 readonly class TestGenerator
 {
     private const MAX_ATTEMPT = 3;
 
     public function __construct(
-        private string $model,
-        private HttpClientInterface $openRouterClient,
+        private LlmClientInterface $llmClient,
         private LlmJsonSanitizer $jsonSanitizer,
         private PhpUnitTestRunner $testRunner,
         private PhpTestFileBuilder $testFileBuilder,
@@ -30,6 +26,7 @@ readonly class TestGenerator
     public function generateForClass(
         string $classCode,
         string $className,
+        string $model,
         ?string $methodName = null,
         ?string $existingTestCode = null,
     ): string {
@@ -71,7 +68,6 @@ readonly class TestGenerator
             $roleUserMessage .= "- Combine les déclarations `use` en haut du fichier si tu ajoutes de nouvelles dépendances.\n";
             $roleUserMessage .= sprintf("- Conserve temporairement la configuration de classe exigée (class %sDynamicTest).\n", $className);
             $roleUserMessage .= sprintf("\nVoici le code du test existant à enrichir :\n```php\n%s\n```\n", $existingTestCode);
-
         } else {
             // Si le fichier de test n'existe pas encore (CRÉATION).
             $roleUserMessage .= "\nGénère un nouveau fichier de test complet à partir de zéro.\n";
@@ -103,7 +99,7 @@ readonly class TestGenerator
             ++$attempt;
 
             try {
-                $rawContent = $this->callLlm($messages);
+                $rawContent = $this->llmClient->call($messages, $model);
 
                 $fixedJson = $this->jsonSanitizer->sanitizeRawJson($rawContent);
                 $content = json_decode($fixedJson, true, 512, JSON_THROW_ON_ERROR);
@@ -139,35 +135,6 @@ readonly class TestGenerator
         }
 
         throw new TestCorrectionException(sprintf('Impossible de générer un test valide pour %s après %d tentatives.', $className, self::MAX_ATTEMPT));
-    }
-
-    /**
-     * Sous-méthode pour isoler l'appel API OpenRouter.
-     *
-     * @param array<int, array{role: string, content: string}> $messages
-     *
-     * @throws TestGenerationException
-     */
-    private function callLlm(array $messages): string
-    {
-        try {
-            $response = $this->openRouterClient->request('POST', 'chat/completions', [
-                'json' => [
-                    'model' => $this->model,
-                    'response_format' => ['type' => 'json_object'],
-                    'messages' => $messages,
-                ],
-            ]);
-
-            $data = $response->toArray();
-            if (!isset($data['choices'][0]['message']['content'])) {
-                throw new TestGenerationException("La structure de réponse d'OpenRouter est invalide.");
-            }
-
-            return trim($data['choices'][0]['message']['content']);
-        } catch (HttpExceptionInterface|DecodingExceptionInterface|TransportExceptionInterface $e) {
-            throw new TestGenerationException('Erreur de communication API : '.$e->getMessage(), 0, $e);
-        }
     }
 
     /**

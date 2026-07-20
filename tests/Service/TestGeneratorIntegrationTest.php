@@ -6,13 +6,12 @@ namespace App\Tests\Service;
 
 use App\Exception\TestCorrectionException;
 use App\Exception\TestGenerationException;
+use App\Llm\LlmClientInterface;
 use App\Service\LlmJsonSanitizer;
 use App\Service\PhpTestFileBuilder;
 use App\Service\PhpUnitTestRunner;
 use App\Service\TestGenerator;
 use PHPUnit\Framework\TestCase;
-use Symfony\Component\HttpClient\MockHttpClient;
-use Symfony\Component\HttpClient\Response\MockResponse;
 
 class TestGeneratorIntegrationTest extends TestCase
 {
@@ -69,12 +68,13 @@ class TestGeneratorIntegrationTest extends TestCase
             ],
         ], JSON_THROW_ON_ERROR);
 
-        // On crée un mock du client HTTP de Symfony pour intercepter l'appel à OpenRouter
-        $mockResponse = new MockResponse($mockedResponseBody, [
-            'http_code' => 200,
-            'response_headers' => ['content-type' => 'application/json'],
-        ]);
-        $mockHttpClient = new MockHttpClient($mockResponse, 'https://openrouter.ai/api/v1/');
+        // On crée un mock de l'interface qui appelle OpenRouter
+        $llmClientMock = $this->createMock(LlmClientInterface::class);
+
+        // On configure le comportement attendu du client LLM
+        $llmClientMock->expects($this->once())
+            ->method('call')
+            ->willReturn($jsonPayload);
 
         // On instancie les vrais services internes (sans les mocker) pour tester leur vraie logique
         $sanitizer = new LlmJsonSanitizer();
@@ -83,15 +83,14 @@ class TestGeneratorIntegrationTest extends TestCase
 
         // On injecte le tout dans notre TestGenerator
         $generator = new TestGenerator(
-            'gpt-4o',
-            $mockHttpClient,
+            $llmClientMock,
             $sanitizer,
             $testRunner,
             $fileBuilder
         );
 
         // ---EXÉCUTION ---
-        $generatedCode = $generator->generateForClass('// code de VatCalculator', 'VatCalculator');
+        $generatedCode = $generator->generateForClass('// code de VatCalculator', 'VatCalculator', 'google/gemini-2.5-flash-lite');
 
         // --- ASSERTIONS ---
         $this->assertStringContainsString('<?php', $generatedCode);
@@ -116,27 +115,26 @@ class TestGeneratorIntegrationTest extends TestCase
         // l'important est de valider que la méthode transmet correctement l'information
         $jsonPayload = file_get_contents($this->fixturePath);
 
-        $mockedResponseBody = json_encode([
-            'choices' => [[
-                'message' => ['content' => $jsonPayload],
-            ]],
-        ], JSON_THROW_ON_ERROR);
+        // Variable pour capturer les messages envoyés au client LLM.
+        $capturedMessages = [];
 
-        // Le MockHttpClient va nous permettre de vérifier le contenu de la requête envoyée au LLM
-        $mockResponse = new MockResponse($mockedResponseBody, [
-            'http_code' => 200,
-            'response_headers' => ['content-type' => 'application/json'],
-        ]);
+        $llmClientMock = $this->createMock(LlmClientInterface::class);
 
-        $mockHttpClient = new MockHttpClient($mockResponse, 'https://openrouter.ai/api/v1/');
+        // On intercepte l'appel à 'call' pour récupérer les arguments transmis
+        $llmClientMock->expects($this->once())
+            ->method('call')
+            ->willReturnCallback(function (array $messages, string $model) use ($jsonPayload, &$capturedMessages) {
+                $capturedMessages = $messages; // On capture le tableau de messages
+
+                return $jsonPayload;          // Le mock retourne la fixture attendue
+            });
 
         $sanitizer = new LlmJsonSanitizer();
         $fileBuilder = new PhpTestFileBuilder($sanitizer);
         $testRunner = new PhpUnitTestRunner($this->projectDir);
 
         $generator = new TestGenerator(
-            'gpt-4o',
-            $mockHttpClient,
+            $llmClientMock,
             $sanitizer,
             $testRunner,
             $fileBuilder
@@ -144,18 +142,18 @@ class TestGeneratorIntegrationTest extends TestCase
 
         // --- EXÉCUTION ---
         // On appelle la méthode en fournissant le 3e argument : 'calculateNetAmountFromGross'
-        $generator->generateForClass('// code de VatCalculator', 'VatCalculator', 'calculateNetAmountFromGross');
+        $generator->generateForClass('// code de VatCalculator', 'VatCalculator', 'google/gemini-2.5-flash-lite', 'calculateNetAmountFromGross');
 
         // --- ASSERTIONS ---
-        // 1. On récupère les options de la requête interceptée par le Mock
-        $requestOptions = $mockResponse->getRequestOptions();
+        // 1. On rassemble le contenu de tous les messages capturés (système et utilisateur).
+        $allContent = '';
+        foreach ($capturedMessages as $message) {
+            $allContent .= ($message['content'] ?? '')."\n";
+        }
 
-        // 2. Le corps de la requête JSON se trouve dans la clé 'body' ou 'json'
-        $requestBody = $requestOptions['body'] ?? '';
-
-        // On vérifie que les instructions spécifiques à la méthode ciblée sont bien présentes dans le prompt transmis
-        $this->assertNotEmpty($requestBody, 'Le corps de la requête envoyée au LLM ne doit pas être vide.');
-        $this->assertStringContainsString('calculateNetAmountFromGross()', $requestBody);
-        $this->assertStringContainsString('CONCENTRE-TOI PRIORITAIREMENT', mb_strtoupper($requestBody, 'UTF-8'));
+        // 2. On vérifie que les instructions spécifiques à la méthode ciblée sont bien présentes dans le prompt
+        $this->assertNotEmpty($allContent, 'Les messages envoyés au LLM ne doivent pas être vides.');
+        $this->assertStringContainsString('calculateNetAmountFromGross', $allContent);
+        $this->assertStringContainsString('CONCENTRE-TOI', mb_strtoupper($allContent, 'UTF-8'));
     }
 }

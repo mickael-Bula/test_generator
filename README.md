@@ -1,4 +1,42 @@
-# Création du projet
+# Outil de génération de tests unitaires par un LLM
+
+Le présent projet vise à créer un bundle de génération de tests unitaires par un LLM.
+
+Dans un souci de flexibilité, le LLM configuré peut être appelé localement via Ollama, ou à distance via l'API OpenRouter.
+
+La déclaration du LLM se fait dans les variables d'environnement.
+
+### Configuration pour un LLM local (Ollama)
+
+Pour choisir un LLM local, il faut déclarer les variables suivantes :
+
+```
+LLM_PROVIDER_SERVICE="App\Llm\OllamaClient"
+MODEL="qwen2.5-coder:14b" # ou tout autre modèle préalablement chargé dans Ollama
+```
+
+Il faut également spécifier l'adresse réseau de l'instance Ollama (en incluant le protocole http://) :
+
+```
+OLLAMA_API_URL="http://localhost:11434" # pour contéacté l'instance Ollama installé sur le poste qui accueille le projet
+# OLLAMA_API_URL="http://192.168.1.XX:11434" # Pour contacter l'instance Ollama installé sur un serveur dédié (réseau local ici)
+```
+### Configuration pour un LLM distant (OpenRouter)
+
+Pour externaliser la génération via OpenRouter, il faut configurer ces variables :
+
+```
+LLM_PROVIDER_SERVICE="App\Llm\OpenRouterClient"
+MODEL="google/gemini-2.5-flash-lite"
+```
+
+Dans ce second cas, il faut obligatoirement fournir une clé d'API valide :
+
+```
+OPENROUTER_API_KEY=sk-or-v1-XXXXX
+```
+
+## Création du projet
 
 ```bash
 C:\laragon\www
