@@ -7,6 +7,7 @@ namespace App\Service;
 use App\Exception\TestCorrectionException;
 use App\Exception\TestGenerationException;
 use App\Llm\LlmClientInterface;
+use App\RepoMap\RepoMapBuilder;
 
 readonly class TestGenerator
 {
@@ -14,9 +15,11 @@ readonly class TestGenerator
 
     public function __construct(
         private LlmClientInterface $llmClient,
+        private RepoMapBuilder $repoMapBuilder,
         private LlmJsonSanitizer $jsonSanitizer,
         private PhpUnitTestRunner $testRunner,
         private PhpTestFileBuilder $testFileBuilder,
+        private string $projectDir,
     ) {
     }
 
@@ -30,65 +33,14 @@ readonly class TestGenerator
         ?string $methodName = null,
         ?string $existingTestCode = null,
     ): string {
-        // Initialisation de l'historique de la conversation
-        $roleSystemMessage = 'Tu es un expert PHPUnit et Symfony. Génère un test unitaire complet. '
-            ."Tu dois TOUJOURS répondre sous la forme d'un objet JSON contenant une seule clé nommée 'test_code'. "
-            ."La valeur de 'test_code' doit être une chaîne de caractères contenant l'intégralité du code PHP "
-            .'valide du fichier de test (commençant par <?php).';
-
-        $roleUserMessage = "Génère le code du test PHPUnit pour la classe {$className} suivante :\n\n".$classCode;
-
-        // On impose le dossier Dynamic comme structure d'isolation (Namespace et Nom de Classe).
-        $roleUserMessage .= "\n\n⚠️ CONFIGURATION OBLIGATOIRE DU FICHIER DE TEST :\n"
-            ."- Espace de noms (namespace) : App\\Tests\\Dynamic\n"
-            .sprintf("- Nom de la classe de test : %sDynamicTest\n", $className);
-
-        // Si un fichier de test existe déjà (FUSION).
-        if (null !== $existingTestCode) {
-            $roleUserMessage .= "\n⚠️ UN FICHIER DE TEST EXISTE DÉJÀ POUR CETTE CLASSE !\n";
-            $roleUserMessage .= "Tu dois impérativement FUSIONNER tes nouveaux tests avec le code existant fourni ci-dessous.\n";
-            $roleUserMessage .= "Consignes de fusion :\n";
-
-            if (null !== $methodName) {
-                $roleUserMessage .= sprintf(
-                    "- **Règle d'Idempotence (Priorité Haute) :** Inspecte minutieusement le code existant ci-dessous. Si des méthodes de test couvrant déjà spécifiquement la méthode `%s()` sont présentes :\n"
-                    ."  a. NE DUPLIQUE PAS les tests. N'ajoute pas de méthodes ayant le même but ou des noms redondants.\n"
-                    ."  b. Évalue si tes nouvelles propositions de tests apportent une réelle valeur ajoutée (ex. un cas limite oublié). Si oui, mets à jour ou remplace proprement les tests existants de cette méthode.\n"
-                    ."  c. Si les tests existants pour cette méthode sont déjà complets et optimaux, renvoie le fichier d'origine sans le modifier inutilement.\n",
-                    $methodName
-                );
-                $roleUserMessage .= "- **Pour les autres méthodes :** Ne supprime et ne modifie AUCUN des tests existants qui concernent d'autres méthodes de la classe.\n";
-            } else {
-                // Fusion globale (sans méthode spécifique)
-                $roleUserMessage .= "- Ne supprime et ne modifie AUCUN des tests existants.\n";
-            }
-
-            $roleUserMessage .= "- S'il s'agit de nouveaux scénarios à ajouter, insère la ou les nouvelles méthodes de test à la suite.\n";
-            $roleUserMessage .= "- Si nécessaire, fusionne proprement le contenu de la méthode `setUp()` sans casser l'existant.\n";
-            $roleUserMessage .= "- Combine les déclarations `use` en haut du fichier si tu ajoutes de nouvelles dépendances.\n";
-            $roleUserMessage .= sprintf("- Conserve temporairement la configuration de classe exigée (class %sDynamicTest).\n", $className);
-            $roleUserMessage .= sprintf("\nVoici le code du test existant à enrichir :\n```php\n%s\n```\n", $existingTestCode);
-        } else {
-            // Si le fichier de test n'existe pas encore (CRÉATION).
-            $roleUserMessage .= "\nGénère un nouveau fichier de test complet à partir de zéro.\n";
-
-            if (null !== $methodName) {
-                $roleUserMessage .= sprintf(
-                    "\n🎯 ATTENTION : Concentre-toi PRIORITAIREMENT et UNIQUEMENT sur les scénarios de test "
-                    .'pour la méthode "%s()". Ne génère pas de tests pour les autres méthodes afin de rester concis.\n',
-                    $methodName
-                );
-            }
-        }
-
         $messages = [
             [
                 'role' => 'system',
-                'content' => $roleSystemMessage,
+                'content' => $this->buildSystemMessage(),
             ],
             [
                 'role' => 'user',
-                'content' => $roleUserMessage,
+                'content' => $this->buildUserMessage($classCode, $className, $methodName, $existingTestCode),
             ],
         ];
 
@@ -156,5 +108,79 @@ readonly class TestGenerator
 
         // Si le JSON est valide, mais sans les bonnes clés, on l'assimile à un échec de structure.
         throw new TestGenerationException("Le format JSON généré par le LLM n'est pas reconnu.");
+    }
+
+    /**
+     * Construit le prompt système global en y injectant le Repo-Map.
+     */
+    private function buildSystemMessage(): string
+    {
+        $systemMessage = 'Tu es un expert PHPUnit et Symfony. Génère un test unitaire complet. '
+            ."Tu dois TOUJOURS répondre sous la forme d'un objet JSON contenant une seule clé nommée 'test_code'. "
+            ."La valeur de 'test_code' doit être une chaîne de caractères contenant l'intégralité du code PHP "
+            .'valide du fichier de test (commençant par <?php).';
+
+        // Génération et injection du Repo-Map
+        $repoMap = $this->repoMapBuilder->buildMap($this->projectDir.'/src');
+
+        if (!empty($repoMap)) {
+            $systemMessage .= "\n\nSTRUCTURE DU PROJET (REPO MAP) POUR T'AIDER À MOCKER ET COMPRENDRE LES DÉPENDANCES :\n"
+                ."```text\n".$repoMap."\n```";
+        }
+
+        return $systemMessage;
+    }
+
+    /**
+     * Construit le message utilisateur avec le code à tester et les contraintes métier.
+     */
+    private function buildUserMessage(
+        string $classCode,
+        string $className,
+        ?string $methodName,
+        ?string $existingTestCode,
+    ): string {
+        $roleUserMessage = "Génère le code du test PHPUnit pour la classe {$className} suivante :\n\n".$classCode;
+
+        $roleUserMessage .= "\n\n⚠️ CONFIGURATION OBLIGATOIRE DU FICHIER DE TEST :\n"
+            ."- Espace de noms (namespace) : App\\Tests\\Dynamic\n"
+            .sprintf("- Nom de la classe de test : %sDynamicTest\n", $className);
+
+        if (null !== $existingTestCode) {
+            $roleUserMessage .= "\n⚠️ UN FICHIER DE TEST EXISTE DÉJÀ POUR CETTE CLASSE !\n";
+            $roleUserMessage .= "Tu dois impérativement FUSIONNER tes nouveaux tests avec le code existant fourni ci-dessous.\n";
+            $roleUserMessage .= "Consignes de fusion :\n";
+
+            if (null !== $methodName) {
+                $roleUserMessage .= sprintf(
+                    "- **Règle d'Idempotence (Priorité Haute) :** Inspecte minutieusement le code existant ci-dessous. Si des méthodes de test couvrant déjà spécifiquement la méthode `%s()` sont présentes :\n"
+                    ."  a. NE DUPLIQUE PAS les tests. N'ajoute pas de méthodes ayant le même but ou des noms redondants.\n"
+                    ."  b. Évalue si tes nouvelles propositions de tests apportent une réelle valeur ajoutée (ex. un cas limite oublié). Si oui, mets à jour ou remplace proprement les tests existants de cette méthode.\n"
+                    ."  c. Si les tests existants pour cette méthode sont déjà complets et optimaux, renvoie le fichier d'origine sans le modifier inutilement.\n",
+                    $methodName
+                );
+                $roleUserMessage .= "- **Pour les autres méthodes :** Ne supprime et ne modifie AUCUN des tests existants qui concernent d'autres méthodes de la classe.\n";
+            } else {
+                $roleUserMessage .= "- Ne supprime et ne modifie AUCUN des tests existants.\n";
+            }
+
+            $roleUserMessage .= "- S'il s'agit de nouveaux scénarios à ajouter, insère la ou les nouvelles méthodes de test à la suite.\n";
+            $roleUserMessage .= "- Si nécessaire, fusionne proprement le contenu de la méthode `setUp()` sans casser l'existant.\n";
+            $roleUserMessage .= "- Combine les déclarations `use` en haut du fichier si tu ajoutes de nouvelles dépendances.\n";
+            $roleUserMessage .= sprintf("- Conserve temporairement la configuration de classe exigée (class %sDynamicTest).\n", $className);
+            $roleUserMessage .= sprintf("\nVoici le code du test existant à enrichir :\n```php\n%s\n```\n", $existingTestCode);
+        } else {
+            $roleUserMessage .= "\nGénère un nouveau fichier de test complet à partir de zéro.\n";
+
+            if (null !== $methodName) {
+                $roleUserMessage .= sprintf(
+                    "\n🎯 ATTENTION : Concentre-toi PRIORITAIREMENT et UNIQUEMENT sur les scénarios de test "
+                    .'pour la méthode "%s()". Ne génère pas de tests pour les autres méthodes afin de rester concis.\n',
+                    $methodName
+                );
+            }
+        }
+
+        return $roleUserMessage;
     }
 }
