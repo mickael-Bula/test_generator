@@ -239,7 +239,7 @@ class TestGeneratorIntegrationTest extends TestCase
         // Assertions sur les messages système envoyés au LLM
         $systemMessage = $capturedMessages[0]['content'] ?? '';
 
-        $this->assertStringContainsString('STRUCTURE DU PROJET (REPO MAP)', $systemMessage);
+        $this->assertStringContainsString('STRUCTURE DU PROJET (REPO-MAP)', $systemMessage);
         $this->assertStringContainsString('App\Service\FooService', $systemMessage);
         $this->assertStringContainsString('public function bar(): void', $systemMessage);
     }

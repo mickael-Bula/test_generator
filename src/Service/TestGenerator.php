@@ -124,8 +124,13 @@ readonly class TestGenerator
         $repoMap = $this->repoMapBuilder->buildMap($this->projectDir.'/src');
 
         if (!empty($repoMap)) {
-            $systemMessage .= "\n\nSTRUCTURE DU PROJET (REPO MAP) POUR T'AIDER À MOCKER ET COMPRENDRE LES DÉPENDANCES :\n"
-                ."```text\n".$repoMap."\n```";
+            $systemMessage .= "\n\n"
+                ."STRUCTURE DU PROJET (REPO-MAP) :\n"
+                ."```text\n".$repoMap."\n```\n\n"
+                ."CONSIGNE SUR LA REPO-MAP :\n"
+                .'- Utilise obligatoirement cette cartographie pour vérifier les namespaces exacts, '
+                ."les méthodes et les types de retour des classes dépendantes lors de la création de mocks.\n"
+                .'- Ne devine pas les signatures des méthodes externes si elles sont présente dans la repo-map.';
         }
 
         return $systemMessage;
