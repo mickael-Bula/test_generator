@@ -41,28 +41,24 @@ readonly class PhpUnitTestRunner
         $process = new Process([
             $phpunitBin,
             $testFilePath,
-        ], $this->projectDir);
+        ], $this->projectDir, [
+            'XDEBUG_MODE' => 'off',
+            'XDEBUG_SESSION' => null,
+        ]);
 
         $process->run();
 
-        // Si le test réussit, on peut choisir de garder le fichier sur le disque
-        if ($process->isSuccessful()) {
-            return [
-                'success' => true,
-                'output' => $process->getOutput(),
-            ];
-        }
-
-        // En cas d'échec, on récupère l'erreur (Stderr ou Output standard de PHPUnit).
+        // On récupère la sortie (Stderr en cas d'échec, sinon Output standard de PHPUnit).
         $output = $process->getOutput() ?: $process->getErrorOutput();
 
-        // On supprime le fichier s'il a échoué pour ne pas polluer la suite.
+        // On supprime le fichier devenu inutile.
         if (file_exists($testFilePath)) {
             unlink($testFilePath);
         }
 
+        // On retourne true en cas de succès, sinon false.
         return [
-            'success' => false,
+            'success' => $process->isSuccessful(),
             'output' => $output,
         ];
     }

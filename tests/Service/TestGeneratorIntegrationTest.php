@@ -7,6 +7,7 @@ namespace App\Tests\Service;
 use App\Exception\TestCorrectionException;
 use App\Exception\TestGenerationException;
 use App\Llm\LlmClientInterface;
+use App\RepoMap\RepoMapBuilder;
 use App\Service\LlmJsonSanitizer;
 use App\Service\PhpTestFileBuilder;
 use App\Service\PhpUnitTestRunner;
@@ -68,6 +69,18 @@ class TestGeneratorIntegrationTest extends TestCase
             ],
         ], JSON_THROW_ON_ERROR);
 
+        // Mock du RepoMapBuilder qui renvoie une carte fictive
+        $repoMapBuilderMock = $this->createMock(RepoMapBuilder::class);
+        $repoMapBuilderMock->expects($this->once())
+            ->method('buildMap')
+            ->willReturn("App\Service\FooService\n  - public function bar(): void");
+
+        // Mock du runner pour simuler un retour valide sans rien exécuter sur le disque.
+        $testRunnerMock = $this->createMock(PhpUnitTestRunner::class);
+        $testRunnerMock->expects($this->once())
+            ->method('runTest')
+            ->willReturn(['success' => true, 'output' => 'OK']);
+
         // On crée un mock de l'interface qui appelle OpenRouter
         $llmClientMock = $this->createMock(LlmClientInterface::class);
 
@@ -79,14 +92,15 @@ class TestGeneratorIntegrationTest extends TestCase
         // On instancie les vrais services internes (sans les mocker) pour tester leur vraie logique
         $sanitizer = new LlmJsonSanitizer();
         $fileBuilder = new PhpTestFileBuilder($sanitizer);
-        $testRunner = new PhpUnitTestRunner($this->projectDir);
 
-        // On injecte le tout dans notre TestGenerator
+        // On injecte le tout dans le TestGenerator
         $generator = new TestGenerator(
             $llmClientMock,
+            $repoMapBuilderMock,
             $sanitizer,
-            $testRunner,
-            $fileBuilder
+            $testRunnerMock,
+            $fileBuilder,
+            '/fake/project/dir'
         );
 
         // ---EXÉCUTION ---
@@ -115,6 +129,18 @@ class TestGeneratorIntegrationTest extends TestCase
         // l'important est de valider que la méthode transmet correctement l'information
         $jsonPayload = file_get_contents($this->fixturePath);
 
+        // Mock du RepoMapBuilder qui renvoie une carte fictive
+        $repoMapBuilderMock = $this->createMock(RepoMapBuilder::class);
+        $repoMapBuilderMock->expects($this->once())
+            ->method('buildMap')
+            ->willReturn("App\Service\FooService\n  - public function bar(): void");
+
+        // Mock du runner pour simuler un retour valide sans rien exécuter sur le disque.
+        $testRunnerMock = $this->createMock(PhpUnitTestRunner::class);
+        $testRunnerMock->expects($this->once())
+            ->method('runTest')
+            ->willReturn(['success' => true, 'output' => 'OK']);
+
         // Variable pour capturer les messages envoyés au client LLM.
         $capturedMessages = [];
 
@@ -131,13 +157,14 @@ class TestGeneratorIntegrationTest extends TestCase
 
         $sanitizer = new LlmJsonSanitizer();
         $fileBuilder = new PhpTestFileBuilder($sanitizer);
-        $testRunner = new PhpUnitTestRunner($this->projectDir);
 
         $generator = new TestGenerator(
             $llmClientMock,
+            $repoMapBuilderMock,
             $sanitizer,
-            $testRunner,
-            $fileBuilder
+            $testRunnerMock,
+            $fileBuilder,
+            '/fake/project/dir'
         );
 
         // --- EXÉCUTION ---
@@ -155,5 +182,65 @@ class TestGeneratorIntegrationTest extends TestCase
         $this->assertNotEmpty($allContent, 'Les messages envoyés au LLM ne doivent pas être vides.');
         $this->assertStringContainsString('calculateNetAmountFromGross', $allContent);
         $this->assertStringContainsString('CONCENTRE-TOI', mb_strtoupper($allContent, 'UTF-8'));
+    }
+
+    /**
+     * @throws TestCorrectionException
+     * @throws TestGenerationException
+     */
+    public function testGenerateForClassInjectsRepoMapAndExecutesTest(): void
+    {
+        // --- ARRANGEMENT ---
+        $capturedMessages = [];
+        $dummyTestCode = '<?php class DummyTest {}';
+
+        // 1. Mock du RepoMapBuilder qui renvoie une carte fictive
+        $repoMapBuilderMock = $this->createMock(RepoMapBuilder::class);
+        $repoMapBuilderMock->expects($this->once())
+            ->method('buildMap')
+            ->willReturn("App\Service\FooService\n  - public function bar(): void");
+
+        // 2. Mock du client LLM : renvoie une fausse réponse JSON contenant du code PHP
+        $llmClientMock = $this->createMock(LlmClientInterface::class);
+        $llmClientMock->expects($this->once())
+            ->method('call')
+            ->willReturnCallback(function (array $messages, string $model) use (&$capturedMessages, $dummyTestCode) {
+                $capturedMessages = $messages;
+
+                // Simule le JSON renvoyé par le LLM que extractTestCodeFromPayload va décoder
+                return json_encode(['test_code' => $dummyTestCode], JSON_THROW_ON_ERROR);
+            });
+
+        // 3. Mock du TestRunner : évite d'exécuter un vrai test PHPUnit
+        $testRunnerMock = $this->createMock(PhpUnitTestRunner::class);
+        $testRunnerMock->expects($this->once())
+            ->method('runTest')
+            ->with($dummyTestCode, 'DummyClass') // Vérifie que le code extrait est bien transmis
+            ->willReturn(['success' => true, 'output' => 'OK (1 test, 1 assertion)']);
+
+        $sanitizer = new LlmJsonSanitizer();
+        $fileBuilder = new PhpTestFileBuilder($sanitizer);
+
+        // --- EXECUTION ---
+        // Instanciation de TestGenerator avec ses mocks
+        $generator = new TestGenerator(
+            $llmClientMock,
+            $repoMapBuilderMock,
+            $sanitizer,
+            $testRunnerMock, // Injection du mock du runner
+            $fileBuilder,
+            '/fake/project/dir'
+        );
+
+        // Exécution de la méthode
+        $generator->generateForClass('class DummyClass {}', 'DummyClass', 'qwen2.5-coder:14b');
+
+        // --- ASSERTIONS ---
+        // Assertions sur les messages système envoyés au LLM
+        $systemMessage = $capturedMessages[0]['content'] ?? '';
+
+        $this->assertStringContainsString('STRUCTURE DU PROJET (REPO-MAP)', $systemMessage);
+        $this->assertStringContainsString('App\Service\FooService', $systemMessage);
+        $this->assertStringContainsString('public function bar(): void', $systemMessage);
     }
 }

@@ -24,8 +24,8 @@ class GenerateTestCommand extends Command
 
     public function __construct(
         private readonly TestGenerator $testGenerator,
-        private readonly string $model,
-        private readonly string $projectDir,
+        private readonly string $model, // injecté depuis services.yaml
+        private readonly string $projectDir, // injecté depuis services.yaml
     ) {
         parent::__construct();
     }

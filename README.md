@@ -50,6 +50,7 @@ composer require symfony/http-client
 composer require --dev phpstan/phpstan
 composer require --dev friendsofphp/php-cs-fixer
 composer require symfony/process
+composer require nikic/php-parser
 ```
 
 ## Ajout de raccourcis pour PhpStan et PHP-CS-fixer dans le composer.json
@@ -94,3 +95,10 @@ php bin/console app:generate-test src\Service\VatCalculator.php --method calcula
 
 Lors du test d'une méthode, ce dernier est ajouté au fichier de la classe testée si elle existe, sinon il est créé.
 Avant de valider les modifications, il incombe au développeur de vérifier les ajouts et suppressions avant de commiter.
+
+Un **Arbre Syntaxique Abstrait** (AST) est fourni en contexte de chaque requête au LLM, 
+afin d'offir une vue complète de la structure du code.
+Il s'agit d'un fichier texte léger qui récapitule la structure des classes, 
+interfaces et méthodes du projet (la signature des méthodes sans leur corps).
+
+Avec ce **repo-map**, le LLM est en mesure de résoudre les dépendances de toute classe fournie à la commande de test.
