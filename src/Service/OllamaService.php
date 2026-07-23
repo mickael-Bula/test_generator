@@ -15,7 +15,7 @@ readonly class OllamaService
 {
     public function __construct(
         private HttpClientInterface $httpClient,
-        private string $ollamaApiUrl,
+        private string $ollamaHost,
     ) {
     }
 
@@ -30,7 +30,7 @@ readonly class OllamaService
      */
     public function generateResponse(array $messages, string $model): string
     {
-        $response = $this->httpClient->request('POST', $this->ollamaApiUrl.'/api/chat', [
+        $response = $this->httpClient->request('POST', $this->ollamaHost.'/api/chat', [
             'json' => [
                 'model' => $model,
                 'messages' => $messages, // Tableau des messages structurés (system + user)

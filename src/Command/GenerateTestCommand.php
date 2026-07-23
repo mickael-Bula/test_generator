@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Command;
 
+use App\Llm\LlmClientFactory;
 use App\Service\TestGenerator;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
@@ -24,7 +25,7 @@ class GenerateTestCommand extends Command
 
     public function __construct(
         private readonly TestGenerator $testGenerator,
-        private readonly string $model, // injecté depuis services.yaml
+        private readonly LlmClientFactory $llmFactory, // Injecte la factory qui récupère le client et le modèle.
         private readonly string $projectDir, // injecté depuis services.yaml
     ) {
         parent::__construct();
@@ -46,7 +47,6 @@ class GenerateTestCommand extends Command
             null,
             InputOption::VALUE_OPTIONAL,
             'Modèle LLM spécifique à utiliser (ex: qwen2.5-coder:14b ou un modèle OpenRouter)',
-            $this->model // Modèle par défaut déclaré dans les variables d'environnement
         );
     }
 
@@ -57,7 +57,9 @@ class GenerateTestCommand extends Command
 
         $this->io = new SymfonyStyle($input, $output);
         $filePath = $input->getArgument('filePath');
-        $model = $input->getOption('model') ?? $this->model;
+
+        // Récupère le modèle passé en option, sinon celui déclaré par défaut dans les variables d'environnement
+        $model = $input->getOption('model') ?? $this->llmFactory->getDefaultModel();
 
         $fullPath = $this->projectDir.'/'.$filePath;
         if (!file_exists($fullPath)) {

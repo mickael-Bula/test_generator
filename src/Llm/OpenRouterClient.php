@@ -21,6 +21,11 @@ readonly class OpenRouterClient implements LlmClientInterface
     ) {
     }
 
+    public function supports(string $provider): bool
+    {
+        return 'openrouter' === strtolower($provider);
+    }
+
     /**
      * @throws TestGenerationException
      */

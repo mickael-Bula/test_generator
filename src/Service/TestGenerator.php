@@ -6,7 +6,7 @@ namespace App\Service;
 
 use App\Exception\TestCorrectionException;
 use App\Exception\TestGenerationException;
-use App\Llm\LlmClientInterface;
+use App\Llm\LlmClientFactory;
 use App\RepoMap\RepoMapBuilder;
 
 readonly class TestGenerator
@@ -14,7 +14,7 @@ readonly class TestGenerator
     private const MAX_ATTEMPT = 3;
 
     public function __construct(
-        private LlmClientInterface $llmClient,
+        private LlmClientFactory $llmFactory,
         private RepoMapBuilder $repoMapBuilder,
         private LlmJsonSanitizer $jsonSanitizer,
         private PhpUnitTestRunner $testRunner,
@@ -29,10 +29,14 @@ readonly class TestGenerator
     public function generateForClass(
         string $classCode,
         string $className,
-        string $model,
+        ?string $model = null,
         ?string $methodName = null,
         ?string $existingTestCode = null,
     ): string {
+        // On résout le client et le modèle à l'aide de la Factory
+        $client = $this->llmFactory->getClient();
+        $targetModel = $model ?? $this->llmFactory->getDefaultModel();
+
         $messages = [
             [
                 'role' => 'system',
@@ -51,7 +55,7 @@ readonly class TestGenerator
             ++$attempt;
 
             try {
-                $rawContent = $this->llmClient->call($messages, $model);
+                $rawContent = $client->call($messages, $targetModel);
 
                 $fixedJson = $this->jsonSanitizer->sanitizeRawJson($rawContent);
                 $content = json_decode($fixedJson, true, 512, JSON_THROW_ON_ERROR);

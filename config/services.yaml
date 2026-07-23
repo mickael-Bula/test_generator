@@ -15,9 +15,7 @@ services:
         autowire: true      # Automatically injects dependencies in your services.
         autoconfigure: true # Automatically registers your services as commands, event subscribers, etc.
         bind:
-            string $model: '%env(MODEL)%'
             string $projectDir: '%kernel.project_dir%'
-            string $ollamaApiUrl: '%env(OLLAMA_API_URL)%'
             float $defaultVatRate: '%app.default_vat_rate%'
 
     # makes classes in src/ available to be used as services
@@ -29,20 +27,37 @@ services:
             - '../src/Entity/'
             - '../src/Kernel.php'
 
+    # On ajoute un tag à tous les clients qui implémentent l'interface LlmClientInterface
+    _instanceof:
+        App\Llm\LlmClientInterface:
+            tags: [ 'app.llm_client' ]
+
+    # On configure la Factory avec les variables déclarées dans le .env
+    App\Llm\LlmClientFactory:
+        arguments:
+            $defaultProvider: '%env(default::LLM_PROVIDER)%'
+            $defaultModel: '%env(default::LLM_MODEL)%'
+
     # Configuration spécifique pour le client OpenRouter
     App\Llm\OpenRouterClient:
         public: true
         arguments:
+            # Client http configuré dans config/packages/framework.yaml
             $openRouterClient: '@openrouter.client'
+
+    # Configuration spécifique pour le client Google/Gemini
+    App\Llm\GeminiClient:
+        public: true
+        arguments:
+            $httpClient: '@gemini.client'
+            $apiKey: '%env(default::GEMINI_API_KEY)%'
 
     # Configuration spécifique pour le client Ollama
     App\Llm\OllamaClient:
         public: true
 
-    # On utilise le container pour récupérer le bon service au runtime
-    App\Llm\LlmClientInterface:
-        factory: ['@service_container', 'get']
+    # Configuration spécifique pour le service Ollama
+    App\Service\OllamaService:
+        public: true
         arguments:
-            - '%env(resolve:LLM_PROVIDER_SERVICE)%'
-
-    App\Service\TestGenerator: ~
+            $ollamaHost: '%env(default::OLLAMA_HOST)%'

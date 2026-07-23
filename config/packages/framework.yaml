@@ -17,6 +17,9 @@ framework:
                     HTTP-Referer: 'http://localhost'
                     X-Title: 'Symfony Test Generator'
 
+            gemini.client:
+                base_uri: 'https://generativelanguage.googleapis.com/'
+
 when@test:
     framework:
         test: true
