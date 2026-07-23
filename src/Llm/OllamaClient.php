@@ -22,6 +22,11 @@ readonly class OllamaClient implements LlmClientInterface
     ) {
     }
 
+    public function supports(string $provider): bool
+    {
+        return 'ollama' === strtolower($provider);
+    }
+
     /**
      * @throws TestGenerationException
      */

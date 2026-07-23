@@ -1,40 +1,54 @@
 # Outil de génération de tests unitaires par un LLM
 
-Le présent projet vise à créer un bundle de génération de tests unitaires par un LLM.
+Le présent projet vise à créer un outil de génération automatique de tests unitaires PHPUnit en s'appuyant sur un modèle de langage (LLM).
 
-Dans un souci de flexibilité, le LLM configuré peut être appelé localement via Ollama, ou à distance via l'API OpenRouter.
+Dans un souci de flexibilité, l'application prend en charge trois fournisseurs de LLM : 
+- un modèle local via **Ollama**
+- un modèle distant via **OpenRouter** 
+- l'**API Google Gemini**.
 
-La déclaration du LLM se fait dans les variables d'environnement.
+La configuration du fournisseur et du modèle s'effectue directement dans les variables d'environnement (`.env` / `.env.local`).
 
-### Configuration pour un LLM local (Ollama)
+---
 
-Pour choisir un LLM local, il faut déclarer les variables suivantes :
+### 1. Configuration pour un LLM local (Ollama)
 
-```
-LLM_PROVIDER_SERVICE="App\Llm\OllamaClient"
-MODEL="qwen2.5-coder:14b" # ou tout autre modèle préalablement chargé dans Ollama
-```
+Pour utiliser un modèle exécuté en local via Ollama :
 
-Il faut également spécifier l'adresse réseau de l'instance Ollama (en incluant le protocole http://) :
-
-```
-OLLAMA_API_URL="http://localhost:11434" # pour contéacté l'instance Ollama installé sur le poste qui accueille le projet
-# OLLAMA_API_URL="http://192.168.1.XX:11434" # Pour contacter l'instance Ollama installé sur un serveur dédié (réseau local ici)
-```
-### Configuration pour un LLM distant (OpenRouter)
-
-Pour externaliser la génération via OpenRouter, il faut configurer ces variables :
-
-```
-LLM_PROVIDER_SERVICE="App\Llm\OpenRouterClient"
-MODEL="google/gemini-2.5-flash-lite"
+```env
+LLM_PROVIDER="ollama"
+LLM_MODEL="qwen2.5-coder:14b" # Ou tout autre modèle chargé dans l'instance Ollama
+OLLAMA_API_URL="http://localhost:11434"
 ```
 
-Dans ce second cas, il faut obligatoirement fournir une clé d'API valide :
+>Note : Si Ollama est hébergé sur une machine distante sur le réseau local, 
+> remplacer localhost par l'adresse IP (ex : http://192.168.1.XX:11434).
 
+### 2. Configuration pour l'API Google Gemini (Recommandé)
+
+Pour utiliser directement l'API native de Google Gemini :
+
+```env
+LLM_PROVIDER="gemini"
+LLM_MODEL="gemini-flash-latest" # Alias stable pointant vers la version Flash la plus récente
+GEMINI_API_KEY="AIzaSyXXXXX"
 ```
-OPENROUTER_API_KEY=sk-or-v1-XXXXX
+
+> Note : Une clé API peut être générée sur [Google Studio](https://aistudio.google.com/).
+
+### 3. Configuration pour un LLM distant (OpenRouter)
+
+Pour externaliser la génération via la plateforme OpenRouter :
+
+```env
+LLM_PROVIDER="openrouter"
+LLM_MODEL="google/gemini-2.0-flash-001"
+OPENROUTER_API_KEY="sk-or-v1-XXXXX"
 ```
+
+> Note : Une clé API doit être générée sur [OpenRouter](https://openrouter.ai/).
+
+---
 
 ## Création du projet
 
