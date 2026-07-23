@@ -15,6 +15,31 @@
         <ini name="error_reporting" value="-1" />
         <server name="APP_ENV" value="test" force="true" />
         <server name="SHELL_VERBOSITY" value="-1" />
+
+        <!-- ###+ symfony/ai-open-ai-platform ### -->
+        <env name="OPENAI_API_KEY" value=""/>
+        <!-- ###- symfony/ai-open-ai-platform ### -->
+
+        <!-- ###+ symfony/ai-anthropic-platform ### -->
+        <env name="ANTHROPIC_API_KEY" value=""/>
+        <!-- ###- symfony/ai-anthropic-platform ### -->
+
+        <!-- ###+ symfony/ai-gemini-platform ### -->
+        <env name="GEMINI_API_KEY" value=""/>
+        <!-- ###- symfony/ai-gemini-platform ### -->
+
+        <!-- ###+ symfony/ai-vertex-ai-platform ### -->
+        <!-- VERTEX_AI_PROJECT_ID=your-project-id -->
+        <!-- VERTEX_AI_LOCATION=us-central1 -->
+        <!-- ###- symfony/ai-vertex-ai-platform ### -->
+
+        <!-- ###+ symfony/ai-generic-platform ### -->
+        <!-- GENERIC_BASE_URL=https://api.example.com/v1 -->
+        <!-- ###- symfony/ai-generic-platform ### -->
+
+        <!-- ###+ symfony/ai-open-router-platform ### -->
+        <env name="OPENROUTER_API_KEY" value=""/>
+        <!-- ###- symfony/ai-open-router-platform ### -->
     </php>
 
     <testsuites>
@@ -35,6 +60,8 @@
         </include>
 
         <deprecationTrigger>
+            <method>Doctrine\Deprecations\Deprecation::trigger</method>
+            <method>Doctrine\Deprecations\Deprecation::delegateTriggerToBackend</method>
             <function>trigger_deprecation</function>
         </deprecationTrigger>
     </source>

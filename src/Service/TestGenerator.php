@@ -24,7 +24,7 @@ readonly class TestGenerator
     }
 
     /**
-     * @throws TestGenerationException|TestCorrectionException
+     * @throws TestCorrectionException
      */
     public function generateForClass(
         string $classCode,
@@ -54,33 +54,17 @@ readonly class TestGenerator
         while ($attempt < self::MAX_ATTEMPT) {
             ++$attempt;
 
-            try {
-                $rawContent = $client->call($messages, $targetModel);
+            $testCode = $client->call($messages, $targetModel);
 
-                $fixedJson = $this->jsonSanitizer->sanitizeRawJson($rawContent);
-                $content = json_decode($fixedJson, true, 512, JSON_THROW_ON_ERROR);
+            // Exécution du test
+            $result = $this->testRunner->runTest($testCode, $className);
 
-                $testCode = $this->extractTestCodeFromPayload($content);
-
-                // Exécution du test
-                $result = $this->testRunner->runTest($testCode, $className);
-
-                if ($result['success']) {
-                    return $testCode;
-                }
-
-                // ÉCHEC DU TEST (Erreur PHPUnit) : on prépare le message pour la tentative suivante
-                $errorMessage = sprintf("L'exécution de PHPUnit a échoué :\n\n%s", $result['output']);
-            } catch (\JsonException|TestGenerationException $e) {
-                // ÉCHEC DE STRUCTURE/JSON : si on n'a pas atteint le max, on prépare la relance
-                if ($attempt >= self::MAX_ATTEMPT) {
-                    $context = ' | Contenu brut reçu : '.substr($rawContent, 0, 150).'...';
-                    $message = 'Échec critique lors de la tentative finale : '.$e->getMessage().$context;
-                    throw new TestGenerationException($message, 0, $e);
-                }
-
-                $errorMessage = sprintf("Ta réponse n'était pas un JSON valide ou ne respectait pas le format. Erreur : %s", $e->getMessage());
+            if ($result['success']) {
+                return $testCode;
             }
+
+            // ÉCHEC DU TEST (Erreur PHPUnit) : on prépare le message pour la tentative suivante
+            $errorMessage = sprintf("L'exécution de PHPUnit a échoué :\n\n%s", $result['output']);
 
             // 3. Enrichissement de l'historique (Partagé pour PHPUnit ET erreurs JSON).
             $messages[] = ['role' => 'assistant', 'content' => $rawContent];
