@@ -21,7 +21,7 @@ readonly class SymfonyAiClient implements LlmClientInterface
      * @param ServiceLocator<PlatformInterface> $platforms
      */
     public function __construct(
-        // On indique d'indexer le ServiceLocator avec la colonne "name" du tag, correspondant aux noms des provides.
+        // On indique d'indexer le ServiceLocator avec la colonne "name" du tag, correspondant aux noms des providers.
         #[AutowireLocator('ai.platform', indexAttribute: 'name')]
         private ServiceLocator $platforms,
         private string $defaultProvider = 'gemini',

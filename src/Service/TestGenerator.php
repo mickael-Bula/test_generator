@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Service;
 
 use App\Exception\TestCorrectionException;
-use App\Exception\TestGenerationException;
 use App\Llm\LlmClientFactory;
 use App\RepoMap\RepoMapBuilder;
 
@@ -16,9 +15,7 @@ readonly class TestGenerator
     public function __construct(
         private LlmClientFactory $llmFactory,
         private RepoMapBuilder $repoMapBuilder,
-        private LlmJsonSanitizer $jsonSanitizer,
         private PhpUnitTestRunner $testRunner,
-        private PhpTestFileBuilder $testFileBuilder,
         private string $projectDir,
     ) {
     }
@@ -75,27 +72,6 @@ readonly class TestGenerator
         }
 
         throw new TestCorrectionException(sprintf('Impossible de générer un test valide pour %s après %d tentatives.', $className, self::MAX_ATTEMPT));
-    }
-
-    /**
-     * @param array<string, mixed> $content
-     *
-     * @throws TestGenerationException
-     */
-    private function extractTestCodeFromPayload(array $content): string
-    {
-        // Cas 1 : Le LLM a renvoyé un fichier complet
-        if (isset($content['test_code'])) {
-            return $this->jsonSanitizer->sanitizePhpCode($content['test_code']);
-        }
-
-        // Cas 2 : Le LLM a renvoyé des fragments à assembler
-        if (isset($content['methods'], $content['namespace'], $content['class'])) {
-            return $this->testFileBuilder->buildFromFragments($content);
-        }
-
-        // Si le JSON est valide, mais sans les bonnes clés, on l'assimile à un échec de structure.
-        throw new TestGenerationException("Le format JSON généré par le LLM n'est pas reconnu.");
     }
 
     /**
