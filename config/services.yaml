@@ -38,26 +38,18 @@ services:
             $defaultProvider: '%env(default::LLM_PROVIDER)%'
             $defaultModel: '%env(default::LLM_MODEL)%'
 
-    # Configuration spécifique pour le client OpenRouter
-    App\Llm\OpenRouterClient:
-        public: true
-        arguments:
-            # Client http configuré dans config/packages/framework.yaml
-            $openRouterClient: '@openrouter.client'
-
-    # Configuration spécifique pour le client Google/Gemini
-    App\Llm\GeminiClient:
-        public: true
-        arguments:
-            $httpClient: '@gemini.client'
-            $apiKey: '%env(default::GEMINI_API_KEY)%'
-
     # Configuration spécifique pour le client Ollama
-    App\Llm\OllamaClient:
-        public: true
+#    App\Llm\OllamaClient:
+#        public: true
 
     # Configuration spécifique pour le service Ollama
-    App\Service\OllamaService:
-        public: true
+#    App\Service\OllamaService:
+#        public: true
+#        arguments:
+#            $ollamaHost: '%env(default::OLLAMA_HOST)%'
+
+    # Configuration pour l'adaptateur Symfony AI
+    App\Llm\SymfonyAiClient:
         arguments:
-            $ollamaHost: '%env(default::OLLAMA_HOST)%'
+            $defaultProvider: '%env(default::LLM_PROVIDER)%'
+            $defaultModel: '%env(default::LLM_MODEL)%'

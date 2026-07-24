@@ -9,8 +9,6 @@ use App\Exception\TestGenerationException;
 use App\Llm\LlmClientFactory;
 use App\Llm\LlmClientInterface;
 use App\RepoMap\RepoMapBuilder;
-use App\Service\LlmJsonSanitizer;
-use App\Service\PhpTestFileBuilder;
 use App\Service\PhpUnitTestRunner;
 use App\Service\TestGenerator;
 use PHPUnit\Framework\TestCase;
@@ -56,48 +54,40 @@ class TestGeneratorIntegrationTest extends TestCase
     public function testGeneratorCleansJsonAndValidatesSuccessfully(): void
     {
         // --- ARRANGEMENT ---
-        // On charge le contenu de notre faux fichier LLM
+        // 1. On charge le contenu de la fixture et on extrait le code PHP (comme le fait désormais le client LLM)
         $jsonPayload = file_get_contents($this->fixturePath);
+        $data = json_decode($jsonPayload, true, 512, JSON_THROW_ON_ERROR);
+        $phpCodePayload = $data['test_code'];
 
-        // Mock du RepoMapBuilder qui renvoie une carte fictive
         $repoMapBuilderMock = $this->createMock(RepoMapBuilder::class);
         $repoMapBuilderMock->expects($this->once())
             ->method('buildMap')
             ->willReturn("App\Service\FooService\n  - public function bar(): void");
 
-        // Mock du runner pour simuler un retour valide sans rien exécuter sur le disque.
         $testRunnerMock = $this->createMock(PhpUnitTestRunner::class);
         $testRunnerMock->expects($this->once())
             ->method('runTest')
             ->willReturn(['success' => true, 'output' => 'OK']);
 
-        // On crée un mock de l'interface qui appelle OpenRouter
         $llmClientMock = $this->createMock(LlmClientInterface::class);
 
-        // On configure le comportement attendu du client LLM
+        // Le client LLM renvoie le code PHP extrait du JSON
         $llmClientMock->expects($this->once())
             ->method('call')
-            ->willReturn($jsonPayload);
+            ->willReturn($phpCodePayload);
 
         $factoryMock = $this->createMock(LlmClientFactory::class);
         $factoryMock->method('getClient')
             ->willReturn($llmClientMock);
 
-        // On instancie les vrais services internes (sans les mocker) pour tester leur vraie logique
-        $sanitizer = new LlmJsonSanitizer();
-        $fileBuilder = new PhpTestFileBuilder($sanitizer);
-
-        // On injecte le tout dans le TestGenerator
         $generator = new TestGenerator(
             $factoryMock,
             $repoMapBuilderMock,
-            $sanitizer,
             $testRunnerMock,
-            $fileBuilder,
             '/fake/project/dir'
         );
 
-        // ---EXÉCUTION ---
+        // --- EXÉCUTION ---
         $generatedCode = $generator->generateForClass('// code de VatCalculator', 'VatCalculator', 'google/gemini-2.5-flash-lite');
 
         // --- ASSERTIONS ---
@@ -105,7 +95,7 @@ class TestGeneratorIntegrationTest extends TestCase
         $this->assertStringContainsString('namespace App\Tests\Dynamic;', $generatedCode);
         $this->assertStringContainsString('class VatCalculatorDynamicTest extends TestCase', $generatedCode);
 
-        // On vérifie que le nettoyage chirurgical des antislashs a bien fonctionné
+        // On vérifie que le nettoyage des antislashs PHP a bien fonctionné
         $this->assertStringNotContainsString('App\\\Tests', $generatedCode);
     }
 
@@ -153,15 +143,10 @@ class TestGeneratorIntegrationTest extends TestCase
         $factoryMock->method('getClient')
             ->willReturn($llmClientMock);
 
-        $sanitizer = new LlmJsonSanitizer();
-        $fileBuilder = new PhpTestFileBuilder($sanitizer);
-
         $generator = new TestGenerator(
             $factoryMock,
             $repoMapBuilderMock,
-            $sanitizer,
             $testRunnerMock,
-            $fileBuilder,
             '/fake/project/dir'
         );
 
@@ -206,8 +191,7 @@ class TestGeneratorIntegrationTest extends TestCase
             ->willReturnCallback(function (array $messages) use (&$capturedMessages, $dummyTestCode) {
                 $capturedMessages = $messages;
 
-                // Simule le JSON renvoyé par le LLM que extractTestCodeFromPayload va décoder
-                return json_encode(['test_code' => $dummyTestCode], JSON_THROW_ON_ERROR);
+                return $dummyTestCode;
             });
 
         $factoryMock = $this->createMock(LlmClientFactory::class);
@@ -221,17 +205,12 @@ class TestGeneratorIntegrationTest extends TestCase
             ->with($dummyTestCode, 'DummyClass') // Vérifie que le code extrait est bien transmis
             ->willReturn(['success' => true, 'output' => 'OK (1 test, 1 assertion)']);
 
-        $sanitizer = new LlmJsonSanitizer();
-        $fileBuilder = new PhpTestFileBuilder($sanitizer);
-
         // --- EXECUTION ---
         // Instanciation de TestGenerator avec ses mocks
         $generator = new TestGenerator(
             $factoryMock,
             $repoMapBuilderMock,
-            $sanitizer,
             $testRunnerMock, // Injection du mock du runner
-            $fileBuilder,
             '/fake/project/dir'
         );
 

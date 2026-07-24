@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Service;
 
 use App\Exception\TestCorrectionException;
-use App\Exception\TestGenerationException;
 use App\Llm\LlmClientFactory;
 use App\RepoMap\RepoMapBuilder;
 
@@ -16,15 +15,13 @@ readonly class TestGenerator
     public function __construct(
         private LlmClientFactory $llmFactory,
         private RepoMapBuilder $repoMapBuilder,
-        private LlmJsonSanitizer $jsonSanitizer,
         private PhpUnitTestRunner $testRunner,
-        private PhpTestFileBuilder $testFileBuilder,
         private string $projectDir,
     ) {
     }
 
     /**
-     * @throws TestGenerationException|TestCorrectionException
+     * @throws TestCorrectionException
      */
     public function generateForClass(
         string $classCode,
@@ -54,33 +51,17 @@ readonly class TestGenerator
         while ($attempt < self::MAX_ATTEMPT) {
             ++$attempt;
 
-            try {
-                $rawContent = $client->call($messages, $targetModel);
+            $testCode = $client->call($messages, $targetModel);
 
-                $fixedJson = $this->jsonSanitizer->sanitizeRawJson($rawContent);
-                $content = json_decode($fixedJson, true, 512, JSON_THROW_ON_ERROR);
+            // Exécution du test
+            $result = $this->testRunner->runTest($testCode, $className);
 
-                $testCode = $this->extractTestCodeFromPayload($content);
-
-                // Exécution du test
-                $result = $this->testRunner->runTest($testCode, $className);
-
-                if ($result['success']) {
-                    return $testCode;
-                }
-
-                // ÉCHEC DU TEST (Erreur PHPUnit) : on prépare le message pour la tentative suivante
-                $errorMessage = sprintf("L'exécution de PHPUnit a échoué :\n\n%s", $result['output']);
-            } catch (\JsonException|TestGenerationException $e) {
-                // ÉCHEC DE STRUCTURE/JSON : si on n'a pas atteint le max, on prépare la relance
-                if ($attempt >= self::MAX_ATTEMPT) {
-                    $context = ' | Contenu brut reçu : '.substr($rawContent, 0, 150).'...';
-                    $message = 'Échec critique lors de la tentative finale : '.$e->getMessage().$context;
-                    throw new TestGenerationException($message, 0, $e);
-                }
-
-                $errorMessage = sprintf("Ta réponse n'était pas un JSON valide ou ne respectait pas le format. Erreur : %s", $e->getMessage());
+            if ($result['success']) {
+                return $testCode;
             }
+
+            // ÉCHEC DU TEST (Erreur PHPUnit) : on prépare le message pour la tentative suivante
+            $errorMessage = sprintf("L'exécution de PHPUnit a échoué :\n\n%s", $result['output']);
 
             // 3. Enrichissement de l'historique (Partagé pour PHPUnit ET erreurs JSON).
             $messages[] = ['role' => 'assistant', 'content' => $rawContent];
@@ -91,27 +72,6 @@ readonly class TestGenerator
         }
 
         throw new TestCorrectionException(sprintf('Impossible de générer un test valide pour %s après %d tentatives.', $className, self::MAX_ATTEMPT));
-    }
-
-    /**
-     * @param array<string, mixed> $content
-     *
-     * @throws TestGenerationException
-     */
-    private function extractTestCodeFromPayload(array $content): string
-    {
-        // Cas 1 : Le LLM a renvoyé un fichier complet
-        if (isset($content['test_code'])) {
-            return $this->jsonSanitizer->sanitizePhpCode($content['test_code']);
-        }
-
-        // Cas 2 : Le LLM a renvoyé des fragments à assembler
-        if (isset($content['methods'], $content['namespace'], $content['class'])) {
-            return $this->testFileBuilder->buildFromFragments($content);
-        }
-
-        // Si le JSON est valide, mais sans les bonnes clés, on l'assimile à un échec de structure.
-        throw new TestGenerationException("Le format JSON généré par le LLM n'est pas reconnu.");
     }
 
     /**

@@ -18,7 +18,7 @@ readonly class LlmClientFactory
      */
     public function __construct(
         #[AutowireIterator('app.llm_client')] private iterable $clients,
-        private string $defaultProvider,
+        private string $defaultProvider, // Paramètre déclaré dans le fichier services.yaml
         private string $defaultModel,
     ) {
     }

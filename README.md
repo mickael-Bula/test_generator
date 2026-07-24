@@ -65,6 +65,16 @@ composer require --dev phpstan/phpstan
 composer require --dev friendsofphp/php-cs-fixer
 composer require symfony/process
 composer require nikic/php-parser
+# Le bundle Symfony
+composer require symfony/ai-bundle
+# Les bridges des fournisseurs supportés
+composer require symfony/ai-open-ai-platform
+composer require symfony/ai-anthropic-platform
+composer require symfony/ai-ollama-platform
+# Bridge de Google Gelini
+composer require symfony/ai-vertex-ai-platform
+#Bridge de OpenRouter
+composer require symfony/ai-open-router-platform
 ```
 
 ## Ajout de raccourcis pour PhpStan et PHP-CS-fixer dans le composer.json
