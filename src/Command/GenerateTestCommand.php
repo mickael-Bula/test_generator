@@ -74,28 +74,14 @@ class GenerateTestCommand extends Command
         $this->io->title(sprintf('Analyse et génération de test pour : %s', $filePath));
 
         if ($methodName) {
-            $this->io->text(sprintf('🎯 Cible spécifique : la méthode <info>\%s()</info>', $methodName));
+            $this->io->text(sprintf('Cible spécifique : la méthode <info>\%s()</info>', $methodName));
         }
 
         $classCode = file_get_contents($fullPath);
         $className = pathinfo($filePath, PATHINFO_FILENAME);
 
         try {
-            // 1. On normalise la racine du projet
-            $normalizedProjectDir = rtrim(str_replace('\\', '/', $this->projectDir), '/');
-
-            // 2. On extrait le namespace d'origine (ex: "App\Service")
-            $originNamespace = $this->extractNamespaceFromCode($classCode);
-
-            // 3. On calcule le namespace cible avec des antislashes (ex : "App\Tests\Service")
-            $targetNamespace = str_replace('App\\', 'App\\Tests\\', $originNamespace);
-
-            // 4. On extrait le sous-dossier (on retire "App\Tests\" puis on convertit les "\" restants en "/")
-            $subFolder = str_replace(['App\\Tests\\', '\\'], ['', '/'], $targetNamespace); // // Donne: "Service"
-
-            // 5. On assemble le tout proprement avec des slashes
-            $finalDisplayDir = sprintf('%s/tests/%s', $normalizedProjectDir, $subFolder);
-            $finalAbsoluteFilePath = sprintf('%s/%sTest.php', $finalDisplayDir, $className);
+            [$targetNamespace, $finalDisplayDir, $finalAbsoluteFilePath] = $this->getNamespaceAndPaths($classCode, $className);
 
             if (!$input->getOption('method') && file_exists($finalAbsoluteFilePath)) {
                 $this->io->warning('Un fichier de test existe déjà pour cette classe : '.basename($finalAbsoluteFilePath));
@@ -158,6 +144,30 @@ class GenerateTestCommand extends Command
 
             return Command::FAILURE;
         }
+    }
+
+    /**
+     * @return array{0: string, 1: string, 2: string}
+     */
+    private function getNamespaceAndPaths(string $classCode, string $className): array
+    {
+        // 1. On normalise la racine du projet
+        $normalizedProjectDir = rtrim(str_replace('\\', '/', $this->projectDir), '/');
+
+        // 2. On extrait le namespace d'origine (ex: "App\Service")
+        $originNamespace = $this->extractNamespaceFromCode($classCode);
+
+        // 3. On calcule le namespace cible avec des antislashes (ex : "App\Tests\Service")
+        $targetNamespace = str_replace('App\\', 'App\\Tests\\', $originNamespace);
+
+        // 4. On extrait le sous-dossier (on retire "App\Tests\" puis on convertit les "\" restants en "/")
+        $subFolder = str_replace(['App\\Tests\\', '\\'], ['', '/'], $targetNamespace); // Donne: "Service"
+
+        // 5. On assemble le tout proprement avec des slashes
+        $finalDisplayDir = sprintf('%s/tests/%s', $normalizedProjectDir, $subFolder);
+        $finalAbsoluteFilePath = sprintf('%s/%sTest.php', $finalDisplayDir, $className);
+
+        return [$targetNamespace, $finalDisplayDir, $finalAbsoluteFilePath];
     }
 
     private function extractNamespaceFromCode(string $classCode): string
