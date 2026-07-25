@@ -47,6 +47,12 @@ class GenerateTestCommand extends Command
             null,
             InputOption::VALUE_OPTIONAL,
             'Modèle LLM spécifique à utiliser (ex: qwen2.5-coder:14b ou un modèle OpenRouter)',
+        )
+        ->addOption(
+            'spec',
+            's',
+            InputOption::VALUE_OPTIONAL,
+            'Chemin vers un fichier de spécification (.md) ou consigne métier sous forme de texte'
         );
     }
 
@@ -61,7 +67,15 @@ class GenerateTestCommand extends Command
         // Récupère le modèle passé en option, sinon celui déclaré par défaut dans les variables d'environnement
         $model = $input->getOption('model') ?? $this->llmFactory->getDefaultModel();
 
-        $fullPath = $this->projectDir.'/'.$filePath;
+        // Récupération du contenu de la spécification
+        $specOption = $input->getOption('spec');
+
+        // Résolution du contenu de la spécification
+        $specContent = $this->resolveSpecContent($specOption, $this->io);
+
+        // Résolution intelligente du fichier cible (Fichier, Chemin relatif ou FQCN).
+        $fullPath = $this->resolveFilePath($filePath);
+
         if (!file_exists($fullPath)) {
             $this->io->error(sprintf('Le fichier "\%s" n\'existe pas.', $fullPath));
 
@@ -117,8 +131,12 @@ class GenerateTestCommand extends Command
 
             $this->io->comment('Envoi du code au LLM...');
 
+            if ($specContent) {
+                $this->io->info('Une spécification métier a été injectée dans le contexte du LLM.');
+            }
+
             // Appel du LLM
-            $testCode = $this->testGenerator->generateForClass($classCode, $className, $model, $methodName, $existingTestCode);
+            $testCode = $this->testGenerator->generateForClass($classCode, $className, $model, $methodName, $existingTestCode, $specContent);
 
             $testCode = $this->replaceDynamicHeadersInTestCode($testCode, $targetNamespace, $className);
 
@@ -223,5 +241,75 @@ class GenerateTestCommand extends Command
         }
 
         return Command::SUCCESS;
+    }
+
+    /**
+     * Tente de lire le contenu de la spec depuis un fichier s'il existe,
+     * sinon retourne la chaîne brute fournie.
+     */
+    private function resolveSpecContent(?string $specOption, SymfonyStyle $io): ?string
+    {
+        if (null === $specOption || '' === trim($specOption)) {
+            return null;
+        }
+
+        // Normalisation des séparateurs de dossier (Windows vs Linux)
+        $normalizedOption = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $specOption);
+
+        // 1. Si le chemin peut être résolu directement (chemin absolu ou relatif au dossier d'exécution).
+        if (file_exists($normalizedOption) && is_file($normalizedOption)) {
+            return file_get_contents($normalizedOption);
+        }
+
+        // 2. Si c'est un chemin relatif à la racine du projet (ex : tests/Specs/my_spec.md).
+        $relativePath = $this->projectDir.DIRECTORY_SEPARATOR.ltrim($normalizedOption, '/\\');
+        if (file_exists($relativePath) && is_file($relativePath)) {
+            return file_get_contents($relativePath);
+        }
+
+        // 3. Si le fichier n'est pas trouvé, mais se termine par .md, on avertit l'utilisateur
+        if (str_ends_with(mb_strtolower($specOption), '.md')) {
+            $io->warning(sprintf('Fichier de spécification non trouvé à l\'emplacement : %s. La valeur sera traitée comme du texte brut.', $relativePath));
+        }
+
+        // Si ce n'est pas un fichier existant, on traite la chaîne directement comme une consigne texte
+        return $specOption;
+    }
+
+    /**
+     * Méthode permettant de résoudre le chemin du fichier à partir de :
+     * 1. un chemin absolu direct.
+     * 2. un chemin relatif depuis la racine du projet (ex : src/Service/VatCalculator.php).
+     * 3. un nom de classe FQCN Symfony (ex : App\Service\VatCalculator).
+     */
+    private function resolveFilePath(string $filePath): string
+    {
+        // Normalisation initiale des slashs
+        $normalized = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $filePath);
+
+        // 1. Chemin direct (absolu ou relatif courant)
+        if (file_exists($normalized) && is_file($normalized)) {
+            return realpath($normalized) ?: $normalized;
+        }
+
+        // 2. Chemin relatif au projet (ex : src/Service/VatCalculator.php)
+        $projectRelativePath = $this->projectDir.DIRECTORY_SEPARATOR.ltrim($normalized, DIRECTORY_SEPARATOR);
+        if (file_exists($projectRelativePath) && is_file($projectRelativePath)) {
+            return realpath($projectRelativePath) ?: $projectRelativePath;
+        }
+
+        // 3. Gestion du FQCN Symfony (ex : App\Service\VatCalculator ou \App\Service\VatCalculator)
+        $cleanFqcn = ltrim($filePath, '\\');
+        if (str_starts_with($cleanFqcn, 'App\\')) {
+            $relativePath = 'src\\'.substr($cleanFqcn, 4).'.php';
+            $fqcnPath = $this->projectDir.DIRECTORY_SEPARATOR.$relativePath;
+
+            if (file_exists($fqcnPath) && is_file($fqcnPath)) {
+                return realpath($fqcnPath) ?: $fqcnPath;
+            }
+        }
+
+        // Si le fichier n'existe pas, on nettoie au moins les doublons de séparateurs pour l'erreur
+        return preg_replace('#[/\\\\]+#', DIRECTORY_SEPARATOR, $projectRelativePath);
     }
 }

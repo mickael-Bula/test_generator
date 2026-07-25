@@ -117,7 +117,9 @@ php bin/console app:generate-test src\Service\VatCalculator.php --method calcula
 
 ## Fonctionnalités
 
-Lors du test d'une méthode, ce dernier est ajouté au fichier de la classe testée si elle existe, sinon il est créé.
+Lors du test d'une méthode, le fichier de test de cette méthode est ajouté au fichier de la classe testée si elle existe,
+sinon il est créé.
+
 Avant de valider les modifications, il incombe au développeur de vérifier les ajouts et suppressions avant de commiter.
 
 Un **Arbre Syntaxique Abstrait** (AST) est fourni en contexte de chaque requête au LLM, 
@@ -126,3 +128,30 @@ Il s'agit d'un fichier texte léger qui récapitule la structure des classes,
 interfaces et méthodes du projet (la signature des méthodes sans leur corps).
 
 Avec ce **repo-map**, le LLM est en mesure de résoudre les dépendances de toute classe fournie à la commande de test.
+
+Un fichier de spécification peut être ajouté en contexte du test, afin de préciser les conditions attendues.
+Ce fichier est rédigé au format **markdown** sous la forme de scénarios **BDD** (Behavior-Driven Development) : 
+Given / When / Then (Étant donné / Lorsque / Alors).
+
+Pour aider à sa rédaction, un template peut être généré au moyen d'une commande dédiée : 
+
+```bash
+php bin/console app:generate-spec App\\Service\\TestClass
+```
+
+Cette approche revêt plusieurs avantages :
+
+- standardisation : L'utilisateur n'hésite plus sur quoi écrire. Il remplit des sections prévisibles.
+- La structure BDD Given / When / Then correspond exactement au pattern classique d'un test unitaire : Arrange / Act / Assert.
+
+| BDD                     | Test unitaire                                                        |
+|-------------------------|----------------------------------------------------------------------|
+| **Given** (Étant donné) | Code du setUp() ou ou instanciation, création de mocks (**Arrange**) |
+| **When** (Lorsque)      | Appel de la méthode à tester (**Act**)                               |
+| **Then** (Alors)        | Assertions PHPUnit (**Assert**)                                      |
+
+Pour lancer les tests en fournissant en contexte un fichier de spécification :
+
+```bash
+php bin/console app:generate-test App\\Service\\VatCalculator --method=applyDiscountAndCalculateGross --spec=tests/Specs/VatCalculator_applyDiscountAndCalculateGrossSpec.md 
+```

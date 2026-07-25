@@ -78,4 +78,43 @@ readonly class VatCalculator
 
         return round($amountTtc - $baseHt, 2);
     }
+
+    /**
+     * Applique une remise sur le montant HT puis calcule le montant TTC final.
+     *
+     * @param float      $netAmount    Montant HT initial
+     * @param float      $discount     Valeur de la remise
+     * @param bool       $isPercentage Si true, $discount est un % (ex: 10 pour 10%). Si false, c'est un montant fixe en HT.
+     * @param float|null $vatRate      Taux de TVA (utilise le taux par défaut si null)
+     *
+     * @throws \InvalidArgumentException si le montant HT est négatif, la remise invalide, ou si le total devient négatif
+     */
+    public function applyDiscountAndCalculateGross(
+        float $netAmount,
+        float $discount,
+        bool $isPercentage = false,
+        ?float $vatRate = null,
+    ): float {
+        if ($netAmount < 0) {
+            throw new \InvalidArgumentException('Le montant HT ne peut pas être négatif.');
+        }
+
+        if ($discount < 0) {
+            throw new \InvalidArgumentException('La remise ne peut pas être négative.');
+        }
+
+        if ($isPercentage && $discount > 100) {
+            throw new \InvalidArgumentException('La remise en pourcentage ne peut pas dépasser 100%.');
+        }
+
+        $discountedNet = $isPercentage
+            ? $netAmount * (1 - ($discount / 100))
+            : $netAmount - $discount;
+
+        if ($discountedNet < 0) {
+            throw new \InvalidArgumentException('Le montant HT après remise ne peut pas être négatif.');
+        }
+
+        return $this->calculateGrossAmount($discountedNet, $vatRate);
+    }
 }

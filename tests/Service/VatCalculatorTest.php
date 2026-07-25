@@ -318,4 +318,172 @@ class VatCalculatorTest extends TestCase
 
         $this->assertEquals($expectedRefund, $actualRefund);
     }
+
+    /**
+     * Scénario 1 : Application d'une remise fixe en valeur sur le montant HT.
+     */
+    public function testApplyDiscountAndCalculateGrossWithFixedDiscount(): void
+    {
+        // ÉTANT DONNÉ un montant HT de 100.0, une remise fixe de 20.0 ($isPercentage = false) et un taux de TVA par défaut de 20.0%
+        $netAmount = 100.0;
+        $discount = 20.0;
+        $isPercentage = false;
+        $vatRate = $this->defaultVatRate;
+
+        // QUAND j'appelle applyDiscountAndCalculateGross(100.0, 20.0, false)
+        $result = $this->vatCalculator->applyDiscountAndCalculateGross($netAmount, $discount, $isPercentage, $vatRate);
+
+        // ALORS le montant HT après remise est de 80.0, la TVA de 16.0 et le résultat TTC retourné doit être exactement 96.0
+        $expectedNetAmountAfterDiscount = 80.0;
+        $expectedVatAmount = 16.0;
+        $expectedGrossAmount = 96.0;
+
+        // Le calcul de la TVA est interne à la méthode calculateGrossAmount, qui utilise calculateVatAmount.
+        // On ne peut donc pas directement vérifier la TVA intermédiaire sans recréer la logique.
+        // On se concentre sur le résultat final TTC.
+        $this->assertEquals($expectedGrossAmount, $result, 'Le montant TTC final est incorrect.');
+
+        // Pour vérifier les montants intermédiaires HT et TVA, on peut utiliser les méthodes publiques.
+        // Ce n'est pas idéal car cela duplique la logique, mais cela permet une vérification plus fine si nécessaire.
+        // En cas de doute, privilégier la vérification du résultat final avec la méthode testée (applyDiscountAndCalculateGross).
+        $actualNetAmountAfterDiscount = $netAmount - $discount;
+        $this->assertEquals($expectedNetAmountAfterDiscount, $actualNetAmountAfterDiscount, 'Le montant HT après remise est incorrect.');
+
+        $actualVatAmount = $this->vatCalculator->calculateVatAmount($actualNetAmountAfterDiscount, $vatRate);
+        $this->assertEquals($expectedVatAmount, $actualVatAmount, 'Le montant de TVA calculé est incorrect.');
+    }
+
+    /**
+     * Scénario 2 : Application d'une remise en pourcentage.
+     */
+    public function testApplyDiscountAndCalculateGrossWithPercentageDiscount(): void
+    {
+        // ÉTANT DONNÉ un montant HT de 200.0, une remise en pourcentage de 15.0% ($isPercentage = true) et un taux de TVA par défaut de 20.0%
+        $netAmount = 200.0;
+        $discount = 15.0;
+        $isPercentage = true;
+        $vatRate = $this->defaultVatRate;
+
+        // QUAND j'appelle applyDiscountAndCalculateGross(200.0, 15.0, true)
+        $result = $this->vatCalculator->applyDiscountAndCalculateGross($netAmount, $discount, $isPercentage, $vatRate);
+
+        // ALORS le montant HT après remise est de 170.0, la TVA de 34.0 et le résultat TTC retourné doit être exactement 204.0
+        $expectedNetAmountAfterDiscount = 170.0;
+        $expectedVatAmount = 34.0;
+        $expectedGrossAmount = 204.0;
+
+        $this->assertEquals($expectedGrossAmount, $result, 'Le montant TTC final est incorrect.');
+
+        // Vérifications intermédiaires (optionnelles, comme dans le scénario 1)
+        $actualNetAmountAfterDiscount = $netAmount * (1 - ($discount / 100));
+        $this->assertEquals($expectedNetAmountAfterDiscount, $actualNetAmountAfterDiscount, 'Le montant HT après remise est incorrect.');
+
+        $actualVatAmount = $this->vatCalculator->calculateVatAmount($actualNetAmountAfterDiscount, $vatRate);
+        $this->assertEquals($expectedVatAmount, $actualVatAmount, 'Le montant de TVA calculé est incorrect.');
+    }
+
+    /**
+     * Scénario 3 : Surcharge du taux de TVA par défaut.
+     */
+    public function testApplyDiscountAndCalculateGrossWithCustomVatRate(): void
+    {
+        // ÉTANT DONNÉ un montant HT de 100.0, une remise en pourcentage de 10.0% ($isPercentage = true) et un taux de TVA spécifique transmis de 10.0%
+        $netAmount = 100.0;
+        $discount = 10.0;
+        $isPercentage = true;
+        $customVatRate = 10.0;
+
+        // QUAND j'appelle applyDiscountAndCalculateGross(100.0, 10.0, true, 10.0)
+        $result = $this->vatCalculator->applyDiscountAndCalculateGross($netAmount, $discount, $isPercentage, $customVatRate);
+
+        // ALORS le montant HT après remise est de 90.0, la TVA calculée à 10% est de 9.0 et le résultat TTC retourné doit être exactement 99.0
+        $expectedNetAmountAfterDiscount = 90.0;
+        $expectedVatAmount = 9.0;
+        $expectedGrossAmount = 99.0;
+
+        $this->assertEquals($expectedGrossAmount, $result, 'Le montant TTC final est incorrect.');
+
+        // Vérifications intermédiaires (optionnelles)
+        $actualNetAmountAfterDiscount = $netAmount * (1 - ($discount / 100));
+        $this->assertEquals($expectedNetAmountAfterDiscount, $actualNetAmountAfterDiscount, 'Le montant HT après remise est incorrect.');
+
+        $actualVatAmount = $this->vatCalculator->calculateVatAmount($actualNetAmountAfterDiscount, $customVatRate);
+        $this->assertEquals($expectedVatAmount, $actualVatAmount, 'Le montant de TVA calculé est incorrect.');
+    }
+
+    /**
+     * Scénario 4 : Levée d'exception pour montant HT initial négatif.
+     */
+    public function testApplyDiscountAndCalculateGrossThrowsExceptionForNegativeNetAmount(): void
+    {
+        // ÉTANT DONNÉ un montant HT négatif de -50.0
+        $netAmount = -50.0;
+        $discount = 10.0;
+        $isPercentage = false;
+        $vatRate = $this->defaultVatRate;
+
+        // ALORS une exception \InvalidArgumentException doit être levée avec le message exact : "Le montant HT ne peut pas être négatif."
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Le montant HT ne peut pas être négatif.');
+
+        // QUAND j'appelle applyDiscountAndCalculateGross(-50.0, 10.0, false)
+        $this->vatCalculator->applyDiscountAndCalculateGross($netAmount, $discount, $isPercentage, $vatRate);
+    }
+
+    /**
+     * Scénario 5 : Levée d'exception pour remise négative.
+     */
+    public function testApplyDiscountAndCalculateGrossThrowsExceptionForNegativeDiscount(): void
+    {
+        // ÉTANT DONNÉ un montant HT de 100.0 et une valeur de remise négative de -5.0
+        $netAmount = 100.0;
+        $discount = -5.0;
+        $isPercentage = false;
+        $vatRate = $this->defaultVatRate;
+
+        // ALORS une exception \InvalidArgumentException doit être levée avec le message exact : "La remise ne peut pas être négative."
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('La remise ne peut pas être négative.');
+
+        // QUAND j'appelle applyDiscountAndCalculateGross(100.0, -5.0, false)
+        $this->vatCalculator->applyDiscountAndCalculateGross($netAmount, $discount, $isPercentage, $vatRate);
+    }
+
+    /**
+     * Scénario 6 : Levée d'exception pour remise en pourcentage supérieure à 100%.
+     */
+    public function testApplyDiscountAndCalculateGrossThrowsExceptionForPercentageDiscountAboveHundred(): void
+    {
+        // ÉTANT DONNÉ un montant HT de 100.0, une remise en pourcentage de 150.0% ($isPercentage = true)
+        $netAmount = 100.0;
+        $discount = 150.0;
+        $isPercentage = true;
+        $vatRate = $this->defaultVatRate;
+
+        // ALORS une exception \InvalidArgumentException doit être levée avec le message exact : "La remise en pourcentage ne peut pas dépasser 100%."
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('La remise en pourcentage ne peut pas dépasser 100%.');
+
+        // QUAND j'appelle applyDiscountAndCalculateGross(100.0, 150.0, true)
+        $this->vatCalculator->applyDiscountAndCalculateGross($netAmount, $discount, $isPercentage, $vatRate);
+    }
+
+    /**
+     * Scénario 7 : Levée d'exception pour remise fixe supérieure au montant HT (solde négatif).
+     */
+    public function testApplyDiscountAndCalculateGrossThrowsExceptionForFixedDiscountExceedingNetAmount(): void
+    {
+        // ÉTANT DONNÉ un montant HT de 50.0 et une remise fixe de 80.0 ($isPercentage = false)
+        $netAmount = 50.0;
+        $discount = 80.0;
+        $isPercentage = false;
+        $vatRate = $this->defaultVatRate;
+
+        // ALORS une exception \InvalidArgumentException doit être levée avec le message exact : "Le montant HT après remise ne peut pas être négatif."
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Le montant HT après remise ne peut pas être négatif.');
+
+        // QUAND j'appelle applyDiscountAndCalculateGross(50.0, 80.0, false)
+        $this->vatCalculator->applyDiscountAndCalculateGross($netAmount, $discount, $isPercentage, $vatRate);
+    }
 }
