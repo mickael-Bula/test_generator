@@ -2,14 +2,24 @@
 
 Le présent projet vise à créer un outil de génération automatique de tests unitaires PHPUnit en s'appuyant sur un modèle de langage (LLM).
 
-Dans un souci de flexibilité, l'application prend en charge trois fournisseurs de LLM : 
-- un modèle local via **Ollama**
-- un modèle distant via **OpenRouter** 
-- l'**API Google Gemini**.
+Dans un souci de flexibilité, l'application s'appuie sur le client **Symfony AI** (`symfony/ai-bundle`). 
+Il est ainsi possible d'interconnecter facilement plusieurs fournisseurs de LLM :
+- **Ollama** (modèles locaux)
+- **Anthropic** (Claude)
+- **Google Gemini**
+- **OpenRouter**
+- **OpenAI** (ChatGPT)
 
-La configuration du fournisseur et du modèle s'effectue directement dans les variables d'environnement (`.env` / `.env.local`).
+L'ajout ou le retrait d'un provider s'effectue simplement par l'installation du paquet dédié via Composer 
+(ex : `composer require symfony/ai-open-router-platform`). 
+Les configurations spécifiques à chaque fournisseur s'effectuent ensuite directement dans le dossier `config/packages/` 
+et via les variables d'environnement (`.env` / `.env.local`).
 
 ---
+
+## Configuration des fournisseurs (LLM Providers)
+
+Grâce à **Symfony AI**, vous pouvez basculer d'un fournisseur à un autre ou en combiner plusieurs selon vos besoins.
 
 ### 1. Configuration pour un LLM local (Ollama)
 
@@ -18,13 +28,13 @@ Pour utiliser un modèle exécuté en local via Ollama :
 ```env
 LLM_PROVIDER="ollama"
 LLM_MODEL="qwen2.5-coder:14b" # Ou tout autre modèle chargé dans l'instance Ollama
-OLLAMA_API_URL="http://localhost:11434"
+OLLAMA_HOST="http://localhost:11434"
 ```
 
 >Note : Si Ollama est hébergé sur une machine distante sur le réseau local, 
 > remplacer localhost par l'adresse IP (ex : http://192.168.1.XX:11434).
 
-### 2. Configuration pour l'API Google Gemini (Recommandé)
+### 2. Configuration pour l'API Google Gemini
 
 Pour utiliser directement l'API native de Google Gemini :
 
@@ -36,7 +46,7 @@ GEMINI_API_KEY="AIzaSyXXXXX"
 
 > Note : Une clé API peut être générée sur [Google Studio](https://aistudio.google.com/).
 
-### 3. Configuration pour un LLM distant (OpenRouter)
+### 3. Configuration pour un agrégateur de LLM distants (OpenRouter)
 
 Pour externaliser la génération via la plateforme OpenRouter :
 
@@ -47,6 +57,20 @@ OPENROUTER_API_KEY="sk-or-v1-XXXXX"
 ```
 
 > Note : Une clé API doit être générée sur [OpenRouter](https://openrouter.ai/).
+
+### 4. Configuration pour Anthropic ou OpenAI
+
+```bash
+# Anthropic
+ANTHROPIC_API_KEY="sk-ant-api03-XXXXX"
+
+# OpenAI
+OPENAI_API_KEY="sk-proj-XXXXX"
+```
+
+>NOTE : Les paramètres de chaque provider sont déclarés et personnalisables 
+> dans leurs fichiers de configuration respectifs sous `config/packages/ai.yaml `
+> (ou dans des fichiers dédiés par plateforme).
 
 ---
 
@@ -78,6 +102,9 @@ composer require symfony/ai-open-router-platform
 ```
 
 ## Ajout de raccourcis pour PhpStan et PHP-CS-fixer dans le composer.json
+
+Pour faciliter l'utilisation des outils de qualité de code (PhpStan, PHP-CS-Fixer, PhpUnit), 
+il est possible d'ajouter des raccourcis dans le fichier composer.json :
 
 ```
     "scripts": {
@@ -115,14 +142,73 @@ php bin/console app:generate-test src\Service\VatCalculator.php
 php bin/console app:generate-test src\Service\VatCalculator.php --method calculateNetAmountFromGross # ou -m calculateNetAmountFromGross
 ```
 
-## Fonctionnalités
+## Ajouter un fichier de contexte pour les tests
 
-Lors du test d'une méthode, ce dernier est ajouté au fichier de la classe testée si elle existe, sinon il est créé.
-Avant de valider les modifications, il incombe au développeur de vérifier les ajouts et suppressions avant de commiter.
+Afin d'obtenir un test très précis, il est possible de fournir un fichier de spécification (contexte) au format Markdown. 
+Ce fichier décrit les règles métier et les scénarios attendus.
 
-Un **Arbre Syntaxique Abstrait** (AST) est fourni en contexte de chaque requête au LLM, 
-afin d'offir une vue complète de la structure du code.
-Il s'agit d'un fichier texte léger qui récapitule la structure des classes, 
-interfaces et méthodes du projet (la signature des méthodes sans leur corps).
+Un fichier de contexte peut être ajouté lors de la génération à l'aide de l'option `**--spec**`.
 
-Avec ce **repo-map**, le LLM est en mesure de résoudre les dépendances de toute classe fournie à la commande de test.
+### 1. Génération du squelette de spécification
+
+Pour vous aider à rédiger ce fichier, 
+vous pouvez générer automatiquement un modèle (template) pour une classe entière ou une méthode ciblée :
+
+```bash
+# Générer le fichier de spécification pour toute une classe :
+php bin/console app:test-spec App\Service\VatCalculator
+
+# Générer le fichier de spécification ciblant une méthode précise :
+php bin/console app:test-spec App\Service\VatCalculator --method=applyDiscountAndCalculateGross
+```
+
+### 2. Renseignement du fichier de contexte
+
+Une fois le fichier Markdown généré dans votre dossier de spécifications (ex : tests/Specs/), 
+éditez-le en respectant les étapes suivantes :
+
+1. Supprimer les crochets générés automatiquement dans le squelette.
+2. Renseigner le nom de la méthode testée pour chaque scénario.
+3. Remplir la structure BDD (Given / When / Then ou Étant donné / Lorsque / Alors) avec les prérequis et les résultats attendus.
+
+Correspondance des concepts BDD & Tests :
+
+- Given (Étant donné) : Préparation des données, instanciation et configuration des Mocks (Arrange)
+- When (Lorsque) : Exécution de la méthode à tester (Act)
+- Then (Alors) : Contrôle du résultat ou exceptions levées via PHPUnit (Assert)
+
+L'avantage de cette approche est que la structure BDD Given / When / Then 
+correspond exactement au pattern classique d'un test unitaire : Arrange / Act / Assert.
+
+| BDD                     | Test unitaire                                                                   |
+|-------------------------|---------------------------------------------------------------------------------|
+| **Given** (Étant donné) | Préparation des données, instanciation et configuration des Mocks (**Arrange**) |
+| **When** (Lorsque)      | Exécution de la méthode à tester (**Act**)                                      |
+| **Then** (Alors)        | Contrôle du résultat ou exceptions levées via PHPUnit (**Assert**)              |
+
+### 3. Exécution de la génération avec le fichier de contexte
+
+Lancez la commande de génération en spécifiant le chemin vers votre fichier de contexte à l'aide des commandes idoines :
+
+```bash
+# Génération pour toute la classe en passant la spécification :
+php bin/console app:generate-test App\Service\VatCalculator --spec=tests/Specs/VatCalculatorSpec.md
+
+# Génération pour une méthode spécifique avec sa spécification :
+php bin/console app:generate-test App\Service\VatCalculator --method=applyDiscountAndCalculateGross --spec=tests/Specs/VatCalculator_applyDiscountAndCalculateGrossSpec.md
+```
+
+## Fonctionnalités & Architecture
+
+Lors du test d'une méthode, le code de test produit est automatiquement injecté dans le fichier de test de la classe ciblée s'il existe déjà, ou le crée si nécessaire.
+
+Note : Avant de valider les modifications, il incombe au développeur de relire et de vérifier le code généré avant de le commiter.
+
+### Utilisation de la Repo-Map (AST)
+
+Un Arbre Syntaxique Abstrait (AST) est automatiquement fourni en contexte de chaque requête au LLM 
+afin d'offrir une vue globale et fidèle de la structure du code.
+
+Il s'agit d'une cartographie légère récapitulant les namespaces, classes, interfaces et signatures de méthodes du projet 
+(sans leur corps exécutable). Grâce à cette Repo-Map, le LLM résout tout seul les dépendances requises, 
+instancie les Mocks appropriés dans setUp() et utilise les bons types sans hallucination.
