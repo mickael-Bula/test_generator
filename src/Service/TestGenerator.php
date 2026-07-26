@@ -87,9 +87,12 @@ readonly class TestGenerator
     private function buildSystemMessage(): string
     {
         $systemMessage = <<<'TEXT'
-Tu es un expert PHPUnit et Symfony. Génère un test unitaire complet.
-Tu dois TOUJOURS répondre sous la forme d'un objet JSON contenant une seule clé nommée 'test_code'.
-La valeur de 'test_code' doit être une chaîne de caractères contenant l'intégralité du code PHP valide du fichier de test (commençant par <?php).
+Tu es un expert PHPUnit 10+ et Symfony. Ton rôle est de générer un fichier de test unitaire complet, propre et exécutable.
+
+FORMAT DE RÉPONSE OBLIGATOIRE :
+- Réponds EXCLUSIVEMENT sous la forme d'un objet JSON valide contenant une seule clé nommée 'test_code'.
+- La valeur de 'test_code' doit être une chaîne de caractères contenant l'intégralité du code PHP (commençant par <?php).
+- Ne mets AUCUN balisage Markdown (ex: ```php) à l'intérieur de la valeur JSON.
 TEXT;
 
         // Génération et injection du Repo-Map
@@ -99,20 +102,47 @@ TEXT;
             $systemMessage .= "\n\n"
                 ."STRUCTURE DU PROJET (REPO-MAP) :\n"
                 ."```text\n".$repoMap."\n```\n\n"
-                ."CONSIGNE SUR LA REPO-MAP :\n"
-                .'- Utilise obligatoirement cette cartographie pour vérifier les namespaces exacts, '
-                ."les méthodes et les types de retour des classes dépendantes lors de la création de mocks.\n"
+                ."CONSIGNES SUR LA REPO-MAP :\n"
+                ."- Utilise obligatoirement cette cartographie pour vérifier les namespaces exacts, les méthodes et les types de retour des classes dépendantes lors de la création de mocks.\n"
                 .'- Ne devine pas les signatures des méthodes externes si elles sont présentes dans la repo-map.';
         }
 
         $systemMessage .= "\n\n".<<<'TEXT'
-⚙️ RÈGLE D'INFÉRENCE DES DEPENDANCES & MOCKS (via Repo-Map) :
-- Analyse le constructeur (`__construct`) de la classe cible présente dans la Repo-Map.
-- Si le constructeur requiert des services ou interfaces (ex: Repositories, Mailer, Logger) :
-  1. Instancie automatiquement des mocks PHPUnit (`$this->createMock(...)`) dans la méthode `setUp()`.
-  2. Injecte ces mocks lors de la création du service à tester.
-  3. Dans chaque scénario BDD, configure les comportements de ces mocks (`willReturn()`, `expects()`) en fonction des étapes 'Étant donné' / 'Alors'.
+RÈGLE D'INFÉRENCE DES DÉPENDANCES ET MOCKS :
+- Analyse le constructeur (__construct) de la classe cible présente dans la Repo-Map.
+- Si le constructeur requiert des services ou interfaces :
+  1. Instancie automatiquement les mocks PHPUnit ($this->createMock(...)) dans la méthode setUp().
+  2. Injecte ces mocks lors de l'instanciation de la classe à tester dans setUp().
+  3. Dans chaque scénario BDD, configure les comportements de ces mocks (expects(), willReturn()) selon les besoins du test.
+- Si la classe à tester ne requiert aucun mock (ou uniquement des scalaires/primitifs) :
+  Instancie TOUJOURS la classe cible directement dans la méthode setUp() et stocke-la dans la propriété de classe correspondant (ex: $this->vatCalculator = new VatCalculator(20.0);).
+- Interdiction de ré-instancier la classe testée dans les méthodes de test.
 - Ne demande pas à la spécification BDD de lister les mocks techniques : déduis-les toi-même à partir de la Repo-Map.
+TEXT;
+
+        $systemMessage .= "\n\n".<<<'TEXT'
+EXIGENCES STRICTES DE QUALITÉ ET STYLE :
+
+1. NORMES PHPUNIT 10 & PHP 8 (OBLIGATOIRE) :
+   - Ajoute OBLIGATOIREMENT #[CoversClass(NomDeLaClasse::class)] sur la classe de test.
+   - Ajoute OBLIGATOIREMENT #[Test] sur chaque méthode de test.
+   - Importe toujours les attributs :
+     use PHPUnit\Framework\Attributes\CoversClass;
+     use PHPUnit\Framework\Attributes\Test;
+   - La méthode setUp() s'utilise de manière standard SANS AUCUN attribut (protected function setUp(): void).
+   - Toutes les méthodes de test et setUp() doivent avoir le type de retour : void.
+   - INTERDICTION STRICTE d'utiliser des blocs PHPDoc (/** ... */) sur la classe ou les méthodes.
+
+2. RÈGLES STRICTES SUR LES COMMENTAIRES ET ASSERTIONS :
+   - AUCUN commentaire de texte libre ou explicatif n'est autorisé dans tout le fichier (ni dans setUp(), ni dans les méthodes de test).
+   - Ne recopie JAMAIS les descriptions, phrases ou détails des scénarios BDD de l'invite dans le code PHP.
+   - Les SEULES lignes de commentaire autorisées dans TOUT LE FICHIER sont STRICTEMENT ces 3 balises courtes, isolées sur leur propre ligne :
+     // ÉTANT DONNÉ
+     // QUAND
+     // ALORS
+   - Il est STRICTEMENT INTERDIT d'écrire quoi que ce soit sur la même ligne après ces balises (ex: INTERDIT d'écrire "// ÉTANT DONNÉ un montant HT...").
+   - Une seule assertion par scénario BDD : teste UNIQUEMENT la valeur de retour finale ou l'exception avec assertSame().
+   - N'ajoute AUCUN message d'erreur personnalisé en 3e argument de assertSame() (ex: fais $this->assertSame($expected, $actual); uniquement).
 TEXT;
 
         return $systemMessage;
@@ -131,7 +161,7 @@ TEXT;
         $testClassName = "{$className}DynamicTest";
 
         $message = "Génère le code du test PHPUnit pour la classe $className suivante :\n\n$classCode\n\n";
-        $message .= "⚠️ CONFIGURATION OBLIGATOIRE DU FICHIER DE TEST :\n";
+        $message .= "CONFIGURATION OBLIGATOIRE DU FICHIER DE TEST :\n";
         $message .= "- Espace de noms (namespace) : App\\Tests\\Dynamic\n";
         $message .= "- Nom de la classe de test : $testClassName\n";
 
@@ -147,7 +177,7 @@ TEXT;
         }
 
         if (null !== $existingTestCode) {
-            $message .= "\n⚠️ UN FICHIER DE TEST EXISTE DÉJÀ POUR CETTE CLASSE !\n";
+            $message .= "\nUN FICHIER DE TEST EXISTE DÉJÀ POUR CETTE CLASSE !\n";
             $message .= "Tu dois impérativement FUSIONNER tes nouveaux tests avec le code existant fourni ci-dessous.\n";
             $message .= "Consignes de fusion :\n";
 
