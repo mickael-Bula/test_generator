@@ -8,7 +8,7 @@ use App\Exception\TestCorrectionException;
 use App\Exception\TestGenerationException;
 use App\Llm\LlmClientFactory;
 use App\Llm\LlmClientInterface;
-use App\RepoMap\RepoMapBuilder;
+use App\RepoMap\CachedRepoMapBuilder;
 use App\Service\PhpUnitTestRunner;
 use App\Service\TestGenerator;
 use PHPUnit\Framework\TestCase;
@@ -59,7 +59,7 @@ class TestGeneratorIntegrationTest extends TestCase
         $data = json_decode($jsonPayload, true, 512, JSON_THROW_ON_ERROR);
         $phpCodePayload = $data['test_code'];
 
-        $repoMapBuilderMock = $this->createMock(RepoMapBuilder::class);
+        $repoMapBuilderMock = $this->createMock(CachedRepoMapBuilder::class);
         $repoMapBuilderMock->expects($this->once())
             ->method('buildMap')
             ->willReturn("App\Service\FooService\n  - public function bar(): void");
@@ -114,7 +114,7 @@ class TestGeneratorIntegrationTest extends TestCase
         $jsonPayload = file_get_contents($this->fixturePath);
 
         // Mock du RepoMapBuilder qui renvoie une carte fictive
-        $repoMapBuilderMock = $this->createMock(RepoMapBuilder::class);
+        $repoMapBuilderMock = $this->createMock(CachedRepoMapBuilder::class);
         $repoMapBuilderMock->expects($this->once())
             ->method('buildMap')
             ->willReturn("App\Service\FooService\n  - public function bar(): void");
@@ -178,7 +178,7 @@ class TestGeneratorIntegrationTest extends TestCase
         $dummyTestCode = '<?php class DummyTest {}';
 
         // 1. Mock du RepoMapBuilder qui renvoie une carte fictive
-        $repoMapBuilderMock = $this->createMock(RepoMapBuilder::class);
+        $repoMapBuilderMock = $this->createMock(CachedRepoMapBuilder::class);
         $repoMapBuilderMock->expects($this->once())
             ->method('buildMap')
             ->willReturn("App\Service\FooService\n  - public function bar(): void");

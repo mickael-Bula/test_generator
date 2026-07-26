@@ -6,7 +6,8 @@ namespace App\Service;
 
 use App\Exception\TestCorrectionException;
 use App\Llm\LlmClientFactory;
-use App\RepoMap\RepoMapBuilder;
+use App\RepoMap\CachedRepoMapBuilder;
+use Psr\Cache\InvalidArgumentException;
 
 readonly class TestGenerator
 {
@@ -14,7 +15,7 @@ readonly class TestGenerator
 
     public function __construct(
         private LlmClientFactory $llmFactory,
-        private RepoMapBuilder $repoMapBuilder,
+        private CachedRepoMapBuilder $repoMapBuilder,
         private PhpUnitTestRunner $testRunner,
         private string $projectDir,
     ) {
@@ -22,6 +23,7 @@ readonly class TestGenerator
 
     /**
      * @throws TestCorrectionException
+     * @throws \RuntimeException
      */
     public function generateForClass(
         string $classCode,
@@ -83,6 +85,8 @@ readonly class TestGenerator
      *
      * Sans les guillemets (HEREDOC), le parser PHP interprête
      * ce qui commence par $ comme une variable et le traite comme une expression.
+     *
+     * @throws \RuntimeException
      */
     private function buildSystemMessage(): string
     {
@@ -96,7 +100,17 @@ FORMAT DE RÉPONSE OBLIGATOIRE :
 TEXT;
 
         // Génération et injection du Repo-Map
-        $repoMap = $this->repoMapBuilder->buildMap($this->projectDir.'/src');
+        try {
+            $repoMap = $this->repoMapBuilder->buildMap($this->projectDir.'/src');
+        } catch (\InvalidArgumentException|InvalidArgumentException $e) {
+            // Si une erreur est interceptée, on le gère dans GenerateTestCommand, où elle remonte naturellement.
+            $message = sprintf(
+                "Impossible de générer le Repo-Map dans '%s' : %s",
+                $this->projectDir.'/src',
+                $e->getMessage()
+            );
+            throw new \RuntimeException($message, previous: $e);
+        }
 
         if (!empty($repoMap)) {
             $systemMessage .= "\n\n"

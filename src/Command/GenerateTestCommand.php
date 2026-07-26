@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Command;
 
+use App\Exception\TestCorrectionException;
 use App\Llm\LlmClientFactory;
 use App\Service\TestGenerator;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -136,7 +137,15 @@ class GenerateTestCommand extends Command
             }
 
             // Appel du LLM
-            $testCode = $this->testGenerator->generateForClass($classCode, $className, $model, $methodName, $existingTestCode, $specContent);
+            try {
+                $testCode = $this->testGenerator->generateForClass($classCode, $className, $model, $methodName,
+                    $existingTestCode, $specContent);
+            } catch (\RuntimeException|TestCorrectionException $e) {
+                // Intercepte les erreurs de Repo-Map ainsi que l'échec de correction PHPUnit
+                $this->io->error($e->getMessage());
+
+                return Command::FAILURE;
+            }
 
             $testCode = $this->replaceDynamicHeadersInTestCode($testCode, $targetNamespace, $className);
 
