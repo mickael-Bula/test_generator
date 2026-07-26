@@ -212,3 +212,21 @@ afin d'offrir une vue globale et fidèle de la structure du code.
 Il s'agit d'une cartographie légère récapitulant les namespaces, classes, interfaces et signatures de méthodes du projet 
 (sans leur corps exécutable). Grâce à cette Repo-Map, le LLM résout tout seul les dépendances requises, 
 instancie les Mocks appropriés dans setUp() et utilise les bons types sans hallucination.
+
+### Optimisation et gestion du cache de la Repo-Map
+
+Afin d'optimiser les performances et d'éviter un re-parsing coûteux des fichiers source à chaque requête, 
+la **Repo-Map** est mise en cache de manière automatique.
+
+Son invalidation est gérée de manière dynamique : 
+une empreinte (hash MD5) basée sur les chemins et les dates de modification (`mtime`) des fichiers du dossier `src/` 
+est calculée à chaque exécution. 
+Si le code source n'a subi aucune modification, la structure est immédiatement restituée depuis le cache.
+
+Si vous souhaitez forcer la régénération complète du Repo-Map 
+(par exemple après un changement d'environnement ou une réorganisation majeure), 
+vous pouvez réinitialiser le pool de cache applicatif à l'aide de la commande Symfony dédiée :
+
+```bash
+php bin/console cache:pool:clear cache.app
+```
