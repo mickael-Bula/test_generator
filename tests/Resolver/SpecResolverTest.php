@@ -35,8 +35,8 @@ final class SpecResolverTest extends TestCase
     }
 
     /**
-     * Test généré avec l'option suivante :
-     * --spec="Tester la résolution par chemin direct et relatif avec et sans l'extension .md"
+     *  Test généré avec l'option :
+     *  --spec="Tester la résolution par chemin direct et relatif avec et sans l'extension .md"
      */
     #[Test]
     public function testResolveByDirectPathWithExtension(): void
@@ -53,8 +53,8 @@ final class SpecResolverTest extends TestCase
     }
 
     /**
-     * Test généré avec l'option :
-     * --spec="Tester la résolution par chemin direct et relatif avec et sans l'extension .md"
+     *  Test généré avec l'option :
+     *  --spec="Tester la résolution par chemin direct et relatif avec et sans l'extension .md"
      */
     #[Test]
     public function testResolveByDirectPathWithoutExtension(): void
@@ -71,8 +71,8 @@ final class SpecResolverTest extends TestCase
     }
 
     /**
-     * Test généré avec l'option :
-     * --spec="Tester la résolution par chemin direct et relatif avec et sans l'extension .md"
+     *  Test généré avec l'option :
+     *  --spec="Tester la résolution par chemin direct et relatif avec et sans l'extension .md"
      */
     #[Test]
     public function testResolveByRelativeProjectPathWithExtension(): void
@@ -89,6 +89,10 @@ final class SpecResolverTest extends TestCase
         $this->assertSame('Relative Spec Content', $result);
     }
 
+    /**
+     *  Test généré avec l'option :
+     *  --spec="Tester la résolution par chemin direct et relatif avec et sans l'extension .md"
+     */
     #[Test]
     public function testResolveByRelativeProjectPathWithoutExtension(): void
     {
@@ -105,7 +109,7 @@ final class SpecResolverTest extends TestCase
     }
 
     /**
-     * Test généré avec l'option suivante :
+     * Test généré avec cette option :
      * --spec="Tester la recherche Finder lorsque le fichier est trouvé, quand il est en double, et quand il n'existe pas"
      */
     #[Test]
@@ -123,7 +127,7 @@ final class SpecResolverTest extends TestCase
     }
 
     /**
-     * Test généré avec l'option suivante :
+     * Test généré avec cette option :
      * --spec="Tester la recherche Finder lorsque le fichier est trouvé, quand il est en double, et quand il n'existe pas"
      *
      * @throws Exception
@@ -147,7 +151,7 @@ final class SpecResolverTest extends TestCase
     }
 
     /**
-     * Test généré avec l'option suivante :
+     * Test généré avec cette option :
      * --spec="Tester la recherche Finder lorsque le fichier est trouvé, quand il est en double, et quand il n'existe pas"
      *
      * @throws Exception
@@ -167,8 +171,25 @@ final class SpecResolverTest extends TestCase
     }
 
     /**
-     * Méthode permettant de supprimer les fichiers temporaires créés par la classe de test.
+     * Test généré avec cette option :
+     * --spec="Vérifier que les avertissements sont bien émis sur $io uniquement quand l'entrée ressemble à un nom de fichier"
+     *
+     * @throws Exception
      */
+    #[Test]
+    public function testResolveDoesNotEmitWarningWhenInputDoesNotLookLikeFile(): void
+    {
+        // ÉTANT DONNÉ
+        $io = $this->createMock(SymfonyStyle::class);
+        $io->expects($this->never())->method('warning');
+
+        // QUAND
+        $result = $this->specResolver->resolve('Traite uniquement la premiere methode', $io);
+
+        // ALORS
+        $this->assertSame('Traite uniquement la premiere methode', $result);
+    }
+
     private function removeDirectory(string $dir): void
     {
         if (!is_dir($dir)) {
