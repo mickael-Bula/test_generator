@@ -144,8 +144,9 @@ php bin/console app:generate-test src/Service/VatCalculator.php
 # 2. Par Namespace / FQCN :
 php bin/console app:generate-test "App\Service\VatCalculator"
 
-# 3. Par nom court de classe (recherche automatique dans le dossier src/) :
+# 3. Par nom court de classe (recherche automatique dans le dossier src/, avec ou sans ::class) :
 php bin/console app:generate-test VatCalculator
+php bin/console app:generate-test VatCalculator::class
 
 # 4. Pour cibler une méthode précise (forme courte -m ou longue --method) :
 php bin/console app:generate-test VatCalculator -m calculateNetAmountFromGross

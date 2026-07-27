@@ -29,6 +29,9 @@ readonly class ClassResolver
             throw new \InvalidArgumentException('L\'argument de classe ne peut pas être vide.');
         }
 
+        // On supprime le suffixe ::class si présent (ex : "VatCalculator::class" → "VatCalculator").
+        $input = preg_replace('/::class$/i', '', $input) ?? $input;
+
         $normalizedPathInput = str_replace('\\', '/', $input);
 
         // Tentative par les trois stratégies successives : si null est retourné, on passe à la suivante.
