@@ -7,13 +7,13 @@ namespace App\Tests\Resolver;
 use App\Resolver\SpecResolver;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\MockObject\Exception;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Console\Style\SymfonyStyle;
 
 /**
- * Test créé automatiquement en utilisant la commande suivante :
- * php bin/console app:generate-test SpecResolver \
- * -m resolve \
- * --spec="Tester la résolution par chemin direct et relatif avec et sans l'extension .md"
+ * Tests générés avec la commande suivante :
+ * php bin/console app:generate-test SpecResolver -m resolve
  */
 #[CoversClass(SpecResolver::class)]
 final class SpecResolverTest extends TestCase
@@ -35,8 +35,8 @@ final class SpecResolverTest extends TestCase
     }
 
     /**
-     * Test qui commence par enregistrer un contenu dans un fichier temporaire,
-     * puis qui vérifie que l'appel au Resolver permet de récupérer ce même contenu.
+     * Test généré avec l'option suivante :
+     * --spec="Tester la résolution par chemin direct et relatif avec et sans l'extension .md"
      */
     #[Test]
     public function testResolveByDirectPathWithExtension(): void
@@ -52,6 +52,10 @@ final class SpecResolverTest extends TestCase
         $this->assertSame('Direct Spec Content', $result);
     }
 
+    /**
+     * Test généré avec l'option :
+     * --spec="Tester la résolution par chemin direct et relatif avec et sans l'extension .md"
+     */
     #[Test]
     public function testResolveByDirectPathWithoutExtension(): void
     {
@@ -66,6 +70,10 @@ final class SpecResolverTest extends TestCase
         $this->assertSame('Direct Spec No Ext Content', $result);
     }
 
+    /**
+     * Test généré avec l'option :
+     * --spec="Tester la résolution par chemin direct et relatif avec et sans l'extension .md"
+     */
     #[Test]
     public function testResolveByRelativeProjectPathWithExtension(): void
     {
@@ -96,6 +104,71 @@ final class SpecResolverTest extends TestCase
         $this->assertSame('Relative Spec No Ext Content', $result);
     }
 
+    /**
+     * Test généré avec l'option suivante :
+     * --spec="Tester la recherche Finder lorsque le fichier est trouvé, quand il est en double, et quand il n'existe pas"
+     */
+    #[Test]
+    public function testResolveByFinderSearchWhenFileIsFound(): void
+    {
+        // ÉTANT DONNÉ
+        mkdir($this->projectDir.'/sub', 0777, true);
+        file_put_contents($this->projectDir.'/sub/finder_spec.md', 'Finder Content');
+
+        // QUAND
+        $result = $this->specResolver->resolve('finder_spec.md');
+
+        // ALORS
+        $this->assertSame('Finder Content', $result);
+    }
+
+    /**
+     * Test généré avec l'option suivante :
+     * --spec="Tester la recherche Finder lorsque le fichier est trouvé, quand il est en double, et quand il n'existe pas"
+     *
+     * @throws Exception
+     */
+    #[Test]
+    public function testResolveByFinderSearchWhenDuplicateFilesFound(): void
+    {
+        // ÉTANT DONNÉ
+        mkdir($this->projectDir.'/sub1', 0777, true);
+        mkdir($this->projectDir.'/sub2', 0777, true);
+        file_put_contents($this->projectDir.'/sub1/dup_spec.md', 'Content 1');
+        file_put_contents($this->projectDir.'/sub2/dup_spec.md', 'Content 2');
+        $io = $this->createMock(SymfonyStyle::class);
+        $io->expects($this->once())->method('warning');
+
+        // QUAND
+        $result = $this->specResolver->resolve('dup_spec.md', $io);
+
+        // ALORS
+        $this->assertSame('dup_spec.md', $result);
+    }
+
+    /**
+     * Test généré avec l'option suivante :
+     * --spec="Tester la recherche Finder lorsque le fichier est trouvé, quand il est en double, et quand il n'existe pas"
+     *
+     * @throws Exception
+     */
+    #[Test]
+    public function testResolveByFinderSearchWhenFileDoesNotExist(): void
+    {
+        // ÉTANT DONNÉ
+        $io = $this->createMock(SymfonyStyle::class);
+        $io->expects($this->once())->method('warning');
+
+        // QUAND
+        $result = $this->specResolver->resolve('NonExistentSpec.md', $io);
+
+        // ALORS
+        $this->assertSame('NonExistentSpec.md', $result);
+    }
+
+    /**
+     * Méthode permettant de supprimer les fichiers temporaires créés par la classe de test.
+     */
     private function removeDirectory(string $dir): void
     {
         if (!is_dir($dir)) {
