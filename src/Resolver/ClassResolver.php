@@ -30,10 +30,16 @@ readonly class ClassResolver
         }
 
         // On supprime le suffixe ::class si présent (ex : "VatCalculator::class" → "VatCalculator").
-        $input = preg_replace('/::class$/i', '', $input) ?? $input;
+        $cleanedInput = preg_replace('/::class$/i', '', $input);
+        if (is_string($cleanedInput)) {
+            $input = $cleanedInput;
+        }
 
-        // Normalisation des doubles antislashes (App\\Service → App\Service)
-        $input = preg_replace('/\\\\{2,}/', '\\', $input) ?? $input;
+        // Normalisation des doubles antislashes (App\\Service -> App\Service)
+        $cleanedInput = preg_replace('/\\\\{2,}/', '\\', $input);
+        if (is_string($cleanedInput)) {
+            $input = $cleanedInput;
+        }
 
         $normalizedPathInput = str_replace('\\', '/', $input);
 
