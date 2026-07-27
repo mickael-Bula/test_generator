@@ -134,12 +134,21 @@ composer install
 
 ## Utiliser le projet
 
-```bash
-# Pour tester toute une classe (comportement par défaut) :
-php bin/console app:generate-test src\Service\VatCalculator.php
+La commande s'utilise en fournissant en argument la classe à tester, 
+qui peut être ciblée de plusieurs manières (chemin relatif, FQCN/namespace ou nom court) :
 
-# Pour cibler une méthode précise (forme longue ou courte)
-php bin/console app:generate-test src\Service\VatCalculator.php --method calculateNetAmountFromGross # ou -m calculateNetAmountFromGross
+```bash
+# 1. Par chemin relatif vers le fichier :
+php bin/console app:generate-test src/Service/VatCalculator.php
+
+# 2. Par Namespace / FQCN :
+php bin/console app:generate-test "App\Service\VatCalculator"
+
+# 3. Par nom court de classe (recherche automatique dans le dossier src/) :
+php bin/console app:generate-test VatCalculator
+
+# 4. Pour cibler une méthode précise (forme courte -m ou longue --method) :
+php bin/console app:generate-test VatCalculator -m calculateNetAmountFromGross
 ```
 
 ## Ajouter un fichier de contexte pour les tests

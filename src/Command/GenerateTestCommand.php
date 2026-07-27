@@ -6,6 +6,7 @@ namespace App\Command;
 
 use App\Exception\TestCorrectionException;
 use App\Llm\LlmClientFactory;
+use App\Resolver\ClassResolver;
 use App\Service\TestGenerator;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
@@ -28,6 +29,7 @@ class GenerateTestCommand extends Command
         private readonly TestGenerator $testGenerator,
         private readonly LlmClientFactory $llmFactory, // Injecte la factory qui récupère le client et le modèle.
         private readonly string $projectDir, // injecté depuis services.yaml
+        private readonly ClassResolver $classResolver,
     ) {
         parent::__construct();
     }
@@ -35,9 +37,11 @@ class GenerateTestCommand extends Command
     protected function configure(): void
     {
         $this->addArgument(
-            'filePath',
+            'class',
             InputArgument::REQUIRED,
-            'Le chemin vers le fichier PHP à tester (ex: src/Service/CalculatorService.php)'
+            'Le nom de la classe à tester, '
+                .'ou son chemin (ex: src/Service/CalculatorService.php) '
+                .'ou encore son namespace (ex : \\App\\Service\\Calculator)'
         )->addOption(
             'method',
             'm',
@@ -63,7 +67,33 @@ class GenerateTestCommand extends Command
         set_time_limit(6000);
 
         $this->io = new SymfonyStyle($input, $output);
-        $filePath = $input->getArgument('filePath');
+        $targetInput = $input->getArgument('class');
+
+        try {
+            // Résolution automatique de l'entrée
+            $resolved = $this->classResolver->resolve($targetInput);
+
+            $fqcn = $resolved['className'];
+            $filePath = $resolved['filePath'];
+
+            // Si le fichier n'existe pas, on arrête l'exécution de la commande.
+            if (!file_exists($filePath)) {
+                $this->io->error(sprintf('Le fichier "%s" n\'existe pas.', $filePath));
+
+                return Command::FAILURE;
+            }
+
+            $classCode = file_get_contents($filePath);
+
+            $this->io->note(sprintf('Classe ciblée : %s (%s)', $fqcn, $filePath));
+        } catch (\InvalidArgumentException|\RuntimeException $e) {
+            $this->io->error($e->getMessage());
+
+            return Command::FAILURE;
+        }
+
+        // On extrait le nom court de la classe (ex : "CalculatorService") depuis le FQCN
+        $shortClassName = basename(str_replace('\\', '/', $fqcn));
 
         // Récupère le modèle passé en option, sinon celui déclaré par défaut dans les variables d'environnement
         $model = $input->getOption('model') ?? $this->llmFactory->getDefaultModel();
@@ -74,29 +104,17 @@ class GenerateTestCommand extends Command
         // Résolution du contenu de la spécification
         $specContent = $this->resolveSpecContent($specOption, $this->io);
 
-        // Résolution intelligente du fichier cible (Fichier, Chemin relatif ou FQCN).
-        $fullPath = $this->resolveFilePath($filePath);
-
-        if (!file_exists($fullPath)) {
-            $this->io->error(sprintf('Le fichier "\%s" n\'existe pas.', $fullPath));
-
-            return Command::FAILURE;
-        }
-
         /** @var string|null $methodName */
         $methodName = $input->getOption('method');
 
-        $this->io->title(sprintf('Analyse et génération de test pour : %s', $filePath));
+        $this->io->title(sprintf('Analyse et génération de test pour : %s', $shortClassName));
 
         if ($methodName) {
-            $this->io->text(sprintf('Cible spécifique : la méthode <info>\%s()</info>', $methodName));
+            $this->io->text(sprintf('Cible spécifique : la méthode <info>%s()</info>', $methodName));
         }
 
-        $classCode = file_get_contents($fullPath);
-        $className = pathinfo($filePath, PATHINFO_FILENAME);
-
         try {
-            [$targetNamespace, $finalDisplayDir, $finalAbsoluteFilePath] = $this->getNamespaceAndPaths($classCode, $className);
+            [$targetNamespace, $finalDisplayDir, $finalAbsoluteFilePath] = $this->getNamespaceAndPaths($classCode, $shortClassName);
 
             if (!$input->getOption('method') && file_exists($finalAbsoluteFilePath)) {
                 $this->io->warning('Un fichier de test existe déjà pour cette classe : '.basename($finalAbsoluteFilePath));
@@ -126,8 +144,11 @@ class GenerateTestCommand extends Command
 
                 $this->io->note('Un fichier de test existant a été détecté. Il va être transmis au LLM pour fusion.');
                 $existingTestCode = file_get_contents($finalAbsoluteFilePath);
-                $existingTestCode = $this->replaceDynamicHeadersInExistingTestCode($existingTestCode, $targetNamespace,
-                    $className);
+                $existingTestCode = $this->replaceDynamicHeadersInExistingTestCode(
+                    $existingTestCode,
+                    $targetNamespace,
+                    $shortClassName
+                );
             }
 
             $this->io->comment('Envoi du code au LLM...');
@@ -138,8 +159,14 @@ class GenerateTestCommand extends Command
 
             // Appel du LLM
             try {
-                $testCode = $this->testGenerator->generateForClass($classCode, $className, $model, $methodName,
-                    $existingTestCode, $specContent);
+                $testCode = $this->testGenerator->generateForClass(
+                    $classCode,
+                    $shortClassName,
+                    $model,
+                    $methodName,
+                    $existingTestCode,
+                    $specContent
+                );
             } catch (\RuntimeException|TestCorrectionException $e) {
                 // Intercepte les erreurs de Repo-Map ainsi que l'échec de correction PHPUnit
                 $this->io->error($e->getMessage());
@@ -147,12 +174,12 @@ class GenerateTestCommand extends Command
                 return Command::FAILURE;
             }
 
-            $testCode = $this->replaceDynamicHeadersInTestCode($testCode, $targetNamespace, $className);
+            $testCode = $this->replaceDynamicHeadersInTestCode($testCode, $targetNamespace, $shortClassName);
 
             file_put_contents($finalAbsoluteFilePath, $testCode);
 
             if ($testFileExisted) {
-                $this->io->success('Le fichier de test existant a été mis à jour et fusionné par Ollama !');
+                $this->io->success('Le fichier de test existant a été mis à jour et fusionné par le LLM !');
                 $this->io->section('🔍 Sécurité & Revue de code');
                 $this->io->info([
                     'Le code existant a été préservé et enrichi.',
@@ -176,12 +203,12 @@ class GenerateTestCommand extends Command
     /**
      * @return array{0: string, 1: string, 2: string}
      */
-    private function getNamespaceAndPaths(string $classCode, string $className): array
+    private function getNamespaceAndPaths(string $classCode, string $shortClassName): array
     {
         // 1. On normalise la racine du projet
         $normalizedProjectDir = rtrim(str_replace('\\', '/', $this->projectDir), '/');
 
-        // 2. On extrait le namespace d'origine (ex: "App\Service")
+        // 2. On extrait le namespace d'origine (ex : "App\Service")
         $originNamespace = $this->extractNamespaceFromCode($classCode);
 
         // 3. On calcule le namespace cible avec des antislashes (ex : "App\Tests\Service")
@@ -192,7 +219,7 @@ class GenerateTestCommand extends Command
 
         // 5. On assemble le tout proprement avec des slashes
         $finalDisplayDir = sprintf('%s/tests/%s', $normalizedProjectDir, $subFolder);
-        $finalAbsoluteFilePath = sprintf('%s/%sTest.php', $finalDisplayDir, $className);
+        $finalAbsoluteFilePath = sprintf('%s/%sTest.php', $finalDisplayDir, $shortClassName);
 
         return [$targetNamespace, $finalDisplayDir, $finalAbsoluteFilePath];
     }
@@ -283,42 +310,5 @@ class GenerateTestCommand extends Command
 
         // Si ce n'est pas un fichier existant, on traite la chaîne directement comme une consigne texte
         return $specOption;
-    }
-
-    /**
-     * Méthode permettant de résoudre le chemin du fichier à partir de :
-     * 1. un chemin absolu direct.
-     * 2. un chemin relatif depuis la racine du projet (ex : src/Service/VatCalculator.php).
-     * 3. un nom de classe FQCN Symfony (ex : App\Service\VatCalculator).
-     */
-    private function resolveFilePath(string $filePath): string
-    {
-        // Normalisation initiale des slashs
-        $normalized = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $filePath);
-
-        // 1. Chemin direct (absolu ou relatif courant)
-        if (file_exists($normalized) && is_file($normalized)) {
-            return realpath($normalized) ?: $normalized;
-        }
-
-        // 2. Chemin relatif au projet (ex : src/Service/VatCalculator.php)
-        $projectRelativePath = $this->projectDir.DIRECTORY_SEPARATOR.ltrim($normalized, DIRECTORY_SEPARATOR);
-        if (file_exists($projectRelativePath) && is_file($projectRelativePath)) {
-            return realpath($projectRelativePath) ?: $projectRelativePath;
-        }
-
-        // 3. Gestion du FQCN Symfony (ex : App\Service\VatCalculator ou \App\Service\VatCalculator)
-        $cleanFqcn = ltrim($filePath, '\\');
-        if (str_starts_with($cleanFqcn, 'App\\')) {
-            $relativePath = 'src\\'.substr($cleanFqcn, 4).'.php';
-            $fqcnPath = $this->projectDir.DIRECTORY_SEPARATOR.$relativePath;
-
-            if (file_exists($fqcnPath) && is_file($fqcnPath)) {
-                return realpath($fqcnPath) ?: $fqcnPath;
-            }
-        }
-
-        // Si le fichier n'existe pas, on nettoie au moins les doublons de séparateurs pour l'erreur
-        return preg_replace('#[/\\\\]+#', DIRECTORY_SEPARATOR, $projectRelativePath);
     }
 }
