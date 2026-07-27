@@ -134,12 +134,22 @@ composer install
 
 ## Utiliser le projet
 
-```bash
-# Pour tester toute une classe (comportement par défaut) :
-php bin/console app:generate-test src\Service\VatCalculator.php
+La commande s'utilise en fournissant en argument la classe à tester, 
+qui peut être ciblée de plusieurs manières (chemin relatif, FQCN/namespace ou nom court) :
 
-# Pour cibler une méthode précise (forme longue ou courte)
-php bin/console app:generate-test src\Service\VatCalculator.php --method calculateNetAmountFromGross # ou -m calculateNetAmountFromGross
+```bash
+# 1. Par chemin relatif vers le fichier :
+php bin/console app:generate-test src/Service/VatCalculator.php
+
+# 2. Par Namespace / FQCN :
+php bin/console app:generate-test "App\Service\VatCalculator"
+
+# 3. Par nom court de classe (recherche automatique dans le dossier src/, avec ou sans ::class) :
+php bin/console app:generate-test VatCalculator
+php bin/console app:generate-test VatCalculator::class
+
+# 4. Pour cibler une méthode précise (forme courte -m ou longue --method) :
+php bin/console app:generate-test VatCalculator -m calculateNetAmountFromGross
 ```
 
 ## Ajouter un fichier de contexte pour les tests
@@ -147,7 +157,7 @@ php bin/console app:generate-test src\Service\VatCalculator.php --method calcula
 Afin d'obtenir un test très précis, il est possible de fournir un fichier de spécification (contexte) au format Markdown. 
 Ce fichier décrit les règles métier et les scénarios attendus.
 
-Un fichier de contexte peut être ajouté lors de la génération à l'aide de l'option `**--spec**`.
+Le fichier de contexte peut être ajouté lors de la génération à l'aide de l'option `**--spec**`.
 
 ### 1. Génération du squelette de spécification
 
@@ -196,6 +206,9 @@ php bin/console app:generate-test App\Service\VatCalculator --spec=tests/Specs/V
 
 # Génération pour une méthode spécifique avec sa spécification :
 php bin/console app:generate-test App\Service\VatCalculator --method=applyDiscountAndCalculateGross --spec=tests/Specs/VatCalculator_applyDiscountAndCalculateGrossSpec.md
+
+# Recherche automatique du fichier par son nom unique dans le projet :
+php bin/console app:generate-test App\Service\VatCalculator --spec=VatCalculatorSpec.md
 ```
 
 ## Fonctionnalités & Architecture
