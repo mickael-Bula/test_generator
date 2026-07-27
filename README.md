@@ -157,7 +157,7 @@ php bin/console app:generate-test VatCalculator -m calculateNetAmountFromGross
 Afin d'obtenir un test très précis, il est possible de fournir un fichier de spécification (contexte) au format Markdown. 
 Ce fichier décrit les règles métier et les scénarios attendus.
 
-Un fichier de contexte peut être ajouté lors de la génération à l'aide de l'option `**--spec**`.
+Le fichier de contexte peut être ajouté lors de la génération à l'aide de l'option `**--spec**`.
 
 ### 1. Génération du squelette de spécification
 
@@ -206,6 +206,9 @@ php bin/console app:generate-test App\Service\VatCalculator --spec=tests/Specs/V
 
 # Génération pour une méthode spécifique avec sa spécification :
 php bin/console app:generate-test App\Service\VatCalculator --method=applyDiscountAndCalculateGross --spec=tests/Specs/VatCalculator_applyDiscountAndCalculateGrossSpec.md
+
+# Recherche automatique du fichier par son nom unique dans le projet :
+php bin/console app:generate-test App\Service\VatCalculator --spec=VatCalculatorSpec.md
 ```
 
 ## Fonctionnalités & Architecture

@@ -7,6 +7,7 @@ namespace App\Command;
 use App\Exception\TestCorrectionException;
 use App\Llm\LlmClientFactory;
 use App\Resolver\ClassResolver;
+use App\Resolver\SpecResolver;
 use App\Service\TestGenerator;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
@@ -30,6 +31,7 @@ class GenerateTestCommand extends Command
         private readonly LlmClientFactory $llmFactory, // Injecte la factory qui récupère le client et le modèle.
         private readonly string $projectDir, // injecté depuis services.yaml
         private readonly ClassResolver $classResolver,
+        private readonly SpecResolver $specResolver,
     ) {
         parent::__construct();
     }
@@ -102,7 +104,7 @@ class GenerateTestCommand extends Command
         $specOption = $input->getOption('spec');
 
         // Résolution du contenu de la spécification
-        $specContent = $this->resolveSpecContent($specOption, $this->io);
+        $specContent = $this->specResolver->resolve($specOption, $this->io);
 
         /** @var string|null $methodName */
         $methodName = $input->getOption('method');
@@ -277,38 +279,5 @@ class GenerateTestCommand extends Command
         }
 
         return Command::SUCCESS;
-    }
-
-    /**
-     * Tente de lire le contenu de la spec depuis un fichier s'il existe,
-     * sinon retourne la chaîne brute fournie.
-     */
-    private function resolveSpecContent(?string $specOption, SymfonyStyle $io): ?string
-    {
-        if (null === $specOption || '' === trim($specOption)) {
-            return null;
-        }
-
-        // Normalisation des séparateurs de dossier (Windows vs Linux)
-        $normalizedOption = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $specOption);
-
-        // 1. Si le chemin peut être résolu directement (chemin absolu ou relatif au dossier d'exécution).
-        if (file_exists($normalizedOption) && is_file($normalizedOption)) {
-            return file_get_contents($normalizedOption);
-        }
-
-        // 2. Si c'est un chemin relatif à la racine du projet (ex : tests/Specs/my_spec.md).
-        $relativePath = $this->projectDir.DIRECTORY_SEPARATOR.ltrim($normalizedOption, '/\\');
-        if (file_exists($relativePath) && is_file($relativePath)) {
-            return file_get_contents($relativePath);
-        }
-
-        // 3. Si le fichier n'est pas trouvé, mais se termine par .md, on avertit l'utilisateur
-        if (str_ends_with(mb_strtolower($specOption), '.md')) {
-            $io->warning(sprintf('Fichier de spécification non trouvé à l\'emplacement : %s. La valeur sera traitée comme du texte brut.', $relativePath));
-        }
-
-        // Si ce n'est pas un fichier existant, on traite la chaîne directement comme une consigne texte
-        return $specOption;
     }
 }

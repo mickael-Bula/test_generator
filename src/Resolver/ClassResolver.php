@@ -32,6 +32,9 @@ readonly class ClassResolver
         // On supprime le suffixe ::class si présent (ex : "VatCalculator::class" → "VatCalculator").
         $input = preg_replace('/::class$/i', '', $input) ?? $input;
 
+        // Normalisation des doubles antislashes (App\\Service → App\Service)
+        $input = preg_replace('/\\\\{2,}/', '\\', $input) ?? $input;
+
         $normalizedPathInput = str_replace('\\', '/', $input);
 
         // Tentative par les trois stratégies successives : si null est retourné, on passe à la suivante.
@@ -49,6 +52,8 @@ readonly class ClassResolver
 
     /**
      * Cas 1 : Chemin de fichier (ex : "src/Service/VatCalculator.php").
+     *
+     * @return array{className: string, filePath: string}|null
      */
     private function resolveByFilePath(string $input, string $normalizedPath): ?array
     {
@@ -70,6 +75,8 @@ readonly class ClassResolver
 
     /**
      * Cas 2 : Namespace / FQCN complet (ex : "App\Service\VatCalculator").
+     *
+     * @return array{className: string, filePath: string}|null
      */
     private function resolveByFqcn(string $input): ?array
     {
@@ -92,6 +99,8 @@ readonly class ClassResolver
 
     /**
      * Cas 3 : Nom court de classe (ex : "VatCalculator").
+     *
+     * @return array{className: string, filePath: string}|null
      */
     private function resolveByShortName(string $normalizedPath): ?array
     {
