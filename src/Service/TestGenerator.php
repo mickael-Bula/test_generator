@@ -7,6 +7,7 @@ namespace App\Service;
 use App\Exception\TestCorrectionException;
 use App\Llm\LlmClientFactory;
 use App\RepoMap\CachedRepoMapBuilder;
+use App\Resolver\SkillResolver;
 use Psr\Cache\InvalidArgumentException;
 
 readonly class TestGenerator
@@ -17,6 +18,7 @@ readonly class TestGenerator
         private LlmClientFactory $llmFactory,
         private CachedRepoMapBuilder $repoMapBuilder,
         private PhpUnitTestRunner $testRunner,
+        private SkillResolver $skillResolver,
         private string $projectDir,
     ) {
     }
@@ -27,6 +29,7 @@ readonly class TestGenerator
      */
     public function generateForClass(
         string $classCode,
+        string $fqcn,
         string $className,
         ?string $model = null,
         ?string $methodName = null,
@@ -37,10 +40,13 @@ readonly class TestGenerator
         $client = $this->llmFactory->getClient();
         $targetModel = $model ?? $this->llmFactory->getDefaultModel();
 
+        // 1. Résolution des skills applicables à la classe ciblée
+        $skillsPrompt = $this->skillResolver->resolveForClass($fqcn, $classCode);
+
         $messages = [
             [
                 'role' => 'system',
-                'content' => $this->buildSystemMessage(),
+                'content' => $this->buildSystemMessage($skillsPrompt),
             ],
             [
                 'role' => 'user',
@@ -88,7 +94,7 @@ readonly class TestGenerator
      *
      * @throws \RuntimeException
      */
-    private function buildSystemMessage(): string
+    private function buildSystemMessage(?string $skillsPrompt = null): string
     {
         $systemMessage = <<<'TEXT'
 Tu es un expert PHPUnit 10+ et Symfony. Ton rôle est de générer un fichier de test unitaire complet, propre et exécutable.
@@ -146,6 +152,7 @@ EXIGENCES STRICTES DE QUALITÉ ET STYLE :
    - La méthode setUp() s'utilise de manière standard SANS AUCUN attribut (protected function setUp(): void).
    - Toutes les méthodes de test et setUp() doivent avoir le type de retour : void.
    - INTERDICTION STRICTE d'utiliser des blocs PHPDoc (/** ... */) sur la classe ou les méthodes.
+   - Pour les vérifications booléennes, utilise assertTrue($condition) ou assertFalse($condition) au lieu de assertSame(true, $condition).
 
 2. RÈGLES STRICTES SUR LES COMMENTAIRES ET ASSERTIONS :
    - AUCUN commentaire de texte libre ou explicatif n'est autorisé dans tout le fichier (ni dans setUp(), ni dans les méthodes de test).
@@ -158,6 +165,10 @@ EXIGENCES STRICTES DE QUALITÉ ET STYLE :
    - Une seule assertion par scénario BDD : teste UNIQUEMENT la valeur de retour finale ou l'exception avec assertSame().
    - N'ajoute AUCUN message d'erreur personnalisé en 3e argument de assertSame() (ex: fais $this->assertSame($expected, $actual); uniquement).
 TEXT;
+
+        if (null !== $skillsPrompt) {
+            $systemMessage .= "\n\n".$skillsPrompt;
+        }
 
         return $systemMessage;
     }

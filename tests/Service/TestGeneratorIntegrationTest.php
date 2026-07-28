@@ -9,6 +9,7 @@ use App\Exception\TestGenerationException;
 use App\Llm\LlmClientFactory;
 use App\Llm\LlmClientInterface;
 use App\RepoMap\CachedRepoMapBuilder;
+use App\Resolver\SkillResolver;
 use App\Service\PhpUnitTestRunner;
 use App\Service\TestGenerator;
 use PHPUnit\Framework\TestCase;
@@ -69,6 +70,8 @@ class TestGeneratorIntegrationTest extends TestCase
             ->method('runTest')
             ->willReturn(['success' => true, 'output' => 'OK']);
 
+        $skillResolverMock = $this->createMock(SkillResolver::class);
+
         $llmClientMock = $this->createMock(LlmClientInterface::class);
 
         // Le client LLM renvoie le code PHP extrait du JSON
@@ -84,6 +87,7 @@ class TestGeneratorIntegrationTest extends TestCase
             $factoryMock,
             $repoMapBuilderMock,
             $testRunnerMock,
+            $skillResolverMock,
             '/fake/project/dir'
         );
 
@@ -125,6 +129,8 @@ class TestGeneratorIntegrationTest extends TestCase
             ->method('runTest')
             ->willReturn(['success' => true, 'output' => 'OK']);
 
+        $skillResolverMock = $this->createMock(SkillResolver::class);
+
         // Variable pour capturer les messages envoyés au client LLM.
         $capturedMessages = [];
 
@@ -147,12 +153,19 @@ class TestGeneratorIntegrationTest extends TestCase
             $factoryMock,
             $repoMapBuilderMock,
             $testRunnerMock,
+            $skillResolverMock,
             '/fake/project/dir'
         );
 
         // --- EXÉCUTION ---
         // On appelle la méthode en fournissant le 3e argument : 'calculateNetAmountFromGross'
-        $generator->generateForClass('// code de VatCalculator', 'VatCalculator', 'google/gemini-2.5-flash-lite', 'calculateNetAmountFromGross');
+        $generator->generateForClass(
+            '// code de VatCalculator',
+            'App\Service\VatCaluculator',
+            'VatCalculator',
+            'google/gemini-2.5-flash-lite',
+            'calculateNetAmountFromGross'
+        );
 
         // --- ASSERTIONS ---
         // 1. On rassemble le contenu de tous les messages capturés (système et utilisateur).
@@ -205,17 +218,25 @@ class TestGeneratorIntegrationTest extends TestCase
             ->with($dummyTestCode, 'DummyClass') // Vérifie que le code extrait est bien transmis
             ->willReturn(['success' => true, 'output' => 'OK (1 test, 1 assertion)']);
 
+        $skillResolverMock = $this->createMock(SkillResolver::class);
+
         // --- EXECUTION ---
         // Instanciation de TestGenerator avec ses mocks
         $generator = new TestGenerator(
             $factoryMock,
             $repoMapBuilderMock,
             $testRunnerMock, // Injection du mock du runner
+            $skillResolverMock,
             '/fake/project/dir'
         );
 
         // Exécution de la méthode
-        $generator->generateForClass('class DummyClass {}', 'DummyClass', 'qwen2.5-coder:14b');
+        $generator->generateForClass(
+            'class DummyClass {}',
+            'DummyNamespace',
+            'DummyClass',
+            'qwen2.5-coder:14b'
+        );
 
         // --- ASSERTIONS ---
         // Assertions sur les messages système envoyés au LLM
