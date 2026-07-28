@@ -135,8 +135,9 @@ RÈGLE D'INFÉRENCE DES DÉPENDANCES ET MOCKS :
   2. Injecte ces mocks lors de l'instanciation de la classe à tester dans setUp().
   3. Dans chaque scénario BDD, configure les comportements de ces mocks (expects(), willReturn()) selon les besoins du test.
 - Si la classe à tester ne requiert aucun mock (ou uniquement des scalaires/primitifs) :
-  Instancie TOUJOURS la classe cible directement dans la méthode setUp() et stocke-la dans la propriété de classe correspondant (ex: $this->vatCalculator = new VatCalculator(20.0);).
-- Interdiction de ré-instancier la classe testée dans les méthodes de test.
+  - Si la classe conserve un état constant (ex: Service, Calculator), tu peux l'instancier dans la méthode setUp().
+  - POUR LES DTO, VALUE OBJECTS ET MODÈLES SANS DÉPENDANCES : N'écris NI propriété de classe, NI méthode setUp().
+    Instancie directement la classe cible dans chaque méthode de test sous la section // ÉTANT DONNÉ.
 - Ne demande pas à la spécification BDD de lister les mocks techniques : déduis-les toi-même à partir de la Repo-Map.
 TEXT;
 

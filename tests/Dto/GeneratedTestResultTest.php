@@ -12,34 +12,56 @@ use PHPUnit\Framework\TestCase;
 #[CoversClass(GeneratedTestResult::class)]
 final class GeneratedTestResultTest extends TestCase
 {
-    private GeneratedTestResult $generatedTestResult;
-
-    protected function setUp(): void
+    #[Test]
+    public function testCleanWindowsLineEndings(): void
     {
-        $this->generatedTestResult = new GeneratedTestResult("```php\r\nnamespace App\\\Tests;\r\n\r\nuse App\\\Entity\\\User;\r\n```");
+        // ÉTANT DONNÉ
+        $dto = new GeneratedTestResult("line1\r\nline2\rline3");
+
+        // QUAND
+        $result = $dto->getCleanTestCode();
+
+        // ALORS
+        $this->assertSame("line1\nline2\nline3", $result);
     }
 
     #[Test]
-    public function testGetCleanTestCode(): void
+    public function testRemoveMarkdownTags(): void
     {
         // ÉTANT DONNÉ
+        $dto = new GeneratedTestResult("```php\n<?php echo 'hello';\n```");
 
         // QUAND
-        $result = $this->generatedTestResult->getCleanTestCode();
+        $result = $dto->getCleanTestCode();
 
         // ALORS
-        $this->assertSame("namespace App\Tests;\n\nuse App\Entity\User;", $result);
+        $this->assertSame("<?php echo 'hello';", $result);
     }
 
     #[Test]
-    public function testTestCodeProperty(): void
+    public function testFixDoubleBackslashes(): void
     {
         // ÉTANT DONNÉ
+        $dto = new GeneratedTestResult('App\\\Entity\\\User');
 
         // QUAND
-        $rawCode = $this->generatedTestResult->testCode;
+        $result = $dto->getCleanTestCode();
 
         // ALORS
-        $this->assertSame("```php\r\nnamespace App\\\Tests;\r\n\r\nuse App\\\Entity\\\User;\r\n```", $rawCode);
+        $this->assertSame('App\Entity\User', $result);
+    }
+
+    #[Test]
+    public function testAccessTestCodeProperty(): void
+    {
+        // ÉTANT DONNÉ
+        $rawCode = 'raw test code';
+        $dto = new GeneratedTestResult($rawCode);
+
+        // QUAND
+        $result = $dto->testCode;
+
+        // ALORS
+        $this->assertSame($rawCode, $result);
     }
 }
