@@ -243,3 +243,75 @@ vous pouvez réinitialiser le pool de cache applicatif à l'aide de la commande 
 ```bash
 php bin/console cache:pool:clear cache.app
 ```
+
+## Système de Skills (Directives Dynamiques)
+
+Afin d'éviter d'alourdir le prompt principal et de préserver des performances optimales, 
+l'outil s'appuie sur une architecture de **Skills ciblés** (situés dans `src/Resources/skills/`).
+
+Un **Skill** est un fichier Markdown contenant des règles de qualité et des bonnes pratiques spécialisées 
+(ex : tests de commandes Symfony, manipulation du système de fichiers).
+
+### Fonctionnement :
+- **Détection automatique :** Le `SkillResolver` analyse la classe cible (via son FQCN et son code source) avant l'envoi au LLM.
+- **Injection contextuelle :** Seules les directives pertinentes pour la classe à tester sont injectées à la volée dans le prompt système.
+
+**Exemples de skills intégrés :**
+
+```
+resources/skills/
+├── phpunit_attributes.md  # Règles sur #[Test], #[CoversClass]
+├── symfony_commands.md    # Règle : Force l'utilisation de `CommandTester` et la vérification des codes de retour/sorties console pour les commandes.
+└── filesystem_tests.md    # Règle : Impose la création d'un dossier temporaire unique (`bin2hex(random_bytes(8))`) dans `setUp()` et son nettoyage systématique dans `tearDown()`.
+```
+
+### Détail d'un fichier Skill
+
+```md
+# Skill : Symfony Command Testing Guidelines
+
+Quand tu génères un test pour une classe qui hérite de `Symfony\Component\Console\Command\Command` :
+1. **CommandTester :** Utilise EXCLUSIVEMENT `Symfony\Component\Console\Tester\CommandTester` pour exécuter la commande. 
+   N'utilise JAMAIS `ReflectionMethod` ou de mocks manuels sur `InputInterface'/`OutputInterface`.
+2. **Assertions :** Vérifie le code de retour (`Command::SUCCESS`) 
+   ET le contenu de la console avec `$commandTester->getDisplay()`.
+3. **Filesystem :** Si la commande crée des fichiers, 
+   utilise `Symfony\Component\Filesystem\Filesystem` pour les vérifications et le nettoyage dans `tearDown()`.
+```
+
+### Injection des Skills
+
+L'astuce consiste à n'injecter le Skill que lorsque c'est pertinent (injections conditionnelles).
+
+Dans la classe **SkillResolver**, on détecte le type de classe à tester avant de construire le prompt final :
+
+```php
+$skills = [];
+
+// 1. Détection automatique : Est-ce une commande Symfony ?
+if (is_subclass_of($fqcn, Command::class)) {
+    $skills[] = file_get_contents($this->skillsDir . '/symfony_commands.md');
+}
+
+// 2. Détection : Est-ce un service interagissant avec le Système de Fichiers ?
+if (str_contains($classCode, 'file_put_contents') || str_contains($classCode, 'Finder')) {
+    $skills[] = file_get_contents($this->skillsDir . '/filesystem_tests.md');
+}
+
+// On injecte uniquement les skills pertinents dans le prompt système
+$systemPrompt = $this->baseSystemPrompt;
+if (!empty($skills)) {
+    $systemPrompt .= "\n\n### RÈGLES DE QUALITÉ DÉDIÉES :\n" . implode("\n\n", $skills);
+}
+```
+
+### Intérêt de cette approche
+
+1. **Modularité** : On conserve un prompt de base très court,
+   rapide et économe en tokens pour les classes simples (DTO, Calculateurs, Handlers).
+
+2. **Précision chirurgicale** : Le LLM ne reçoit la règle CommandTester que lorsqu'il teste une commande Symfony.
+
+3. **Évolutivité** : Les utilisateurs du bundle pourront ajouter leurs propres fichiers de règles dans leur projet
+   (ex : config/packages/generate_test/skills/my_custom_rules.md)
+   pour adapter la génération de tests à leurs propres standards d'entreprise.
