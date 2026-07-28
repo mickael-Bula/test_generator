@@ -164,6 +164,18 @@ EXIGENCES STRICTES DE QUALITÉ ET STYLE :
    - Il est STRICTEMENT INTERDIT d'écrire quoi que ce soit sur la même ligne après ces balises (ex: INTERDIT d'écrire "// ÉTANT DONNÉ un montant HT...").
    - Une seule assertion par scénario BDD : teste UNIQUEMENT la valeur de retour finale ou l'exception avec assertSame().
    - N'ajoute AUCUN message d'erreur personnalisé en 3e argument de assertSame() (ex: fais $this->assertSame($expected, $actual); uniquement).
+   - CAS PARTICULIER DES EXCEPTIONS : Lorsqu'un test vérifie le levé d'une exception via $this->expectException(...) :
+    1. Place l'enregistrement de l'attente ($this->expectException(...)) sous la section // ALORS.
+    2. Place l'appel de la méthode qui déclenche l'exception sous la section // QUAND, en TOUT DERNIER.
+    Exemple exact :
+      // ÉTANT DONNÉ
+      $invalidValue = -1;
+
+      // ALORS
+      $this->expectException(\InvalidArgumentException::class);
+
+      // QUAND
+      $this->service->doSomething($invalidValue);
 TEXT;
 
         if (null !== $skillsPrompt) {
