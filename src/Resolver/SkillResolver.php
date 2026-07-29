@@ -25,42 +25,68 @@ class SkillResolver
      */
     public function resolveForClass(string $fqcn, string $classCode): string
     {
-        $skills = [];
+        $skillsToLoad = [];
 
         // 1. Skill : Commandes Symfony
-        $isCommand = (class_exists($fqcn) && is_subclass_of($fqcn, Command::class))
-            || str_contains($classCode, 'extends Command')
-            || str_contains($classCode, '#[AsCommand');
-
-        if ($isCommand) {
-            $skills[] = $this->loadSkill('symfony_command.md');
+        if ($this->isSymfonyCommand($fqcn, $classCode)) {
+            $skillsToLoad[] = 'symfony_command.md';
         }
 
-        // 2. Skill : Manipulation du système de fichiers / Finder / Temp
-        $hasFilesystem = str_contains($classCode, 'file_put_contents')
-            || str_contains($classCode, 'Finder')
-            || str_contains($classCode, 'sys_get_temp_dir')
-            || str_contains($classCode, 'mkdir');
-
-        if ($hasFilesystem) {
-            $skills[] = $this->loadSkill('filesystem_test.md');
+        // 2. Skill : Système de fichiers / I/O
+        if ($this->hasFilesystemOperations($classCode)) {
+            $skillsToLoad[] = 'filesystem_test.md';
         }
 
-        // 3. Chargement éventuel de skills personnalisés situés dans le projet hôte
+        // 3. Skill : PhpParser v5
+        if ($this->usesPhpParser($classCode)) {
+            $skillsToLoad[] = 'php-parser-v5.md';
+        }
+
+        // Chargement du contenu (on s'assure de ne charger un skill qu'une seule fois).
+        $loadedSkills = [];
+        foreach (array_unique($skillsToLoad) as $skillFile) {
+            $content = $this->loadSkill($skillFile);
+            if (null !== $content) {
+                $loadedSkills[] = $content;
+            }
+        }
+
+        // 4. Ajout des skills personnalisés du projet
         $customSkills = $this->loadCustomSkills();
 
-        return implode("\n\n", array_merge($skills, $customSkills));
+        return implode("\n\n", array_merge($loadedSkills, $customSkills));
     }
 
-    private function loadSkill(string $filename): string
+    private function isSymfonyCommand(string $fqcn, string $classCode): bool
+    {
+        return (class_exists($fqcn) && is_subclass_of($fqcn, Command::class))
+            || 1 === preg_match('/\bextends\s+Command\b/', $classCode)
+            || str_contains($classCode, '#[AsCommand');
+    }
+
+    private function hasFilesystemOperations(string $classCode): bool
+    {
+        // Utilisation de \b pour éviter de matcher des mots comme "UserFinder" ou "MyFilesystem"
+        return 1 === preg_match('/\b(file_put_contents|file_get_contents|mkdir|sys_get_temp_dir|unlink)\b/', $classCode)
+            || 1 === preg_match('/\buse\s+Symfony\\\\Component\\\\Finder\\\\Finder\b/', $classCode)
+            || 1 === preg_match('/\buse\s+Symfony\\\\Component\\\\Filesystem\\\\Filesystem\b/', $classCode);
+    }
+
+    private function usesPhpParser(string $classCode): bool
+    {
+        return str_contains($classCode, 'PhpParser\\')
+            || 1 === preg_match('/\buse\s+PhpParser\b/', $classCode);
+    }
+
+    private function loadSkill(string $filename): ?string
     {
         $path = $this->nativeSkillsDir.'/'.$filename;
 
-        if (file_exists($path)) {
-            return file_get_contents($path) ?: '';
+        if (!file_exists($path)) {
+            return null;
         }
 
-        return '';
+        return file_get_contents($path) ?: null;
     }
 
     /**
