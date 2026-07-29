@@ -12,9 +12,10 @@ class SkillResolver
 
     public function __construct(
         private readonly ?string $customSkillsDir = null,
+        ?string $nativeSkillsDir = null,
     ) {
         // Chemin relatif vers src/Resources/skills
-        $this->nativeSkillsDir = \dirname(__DIR__).'/Resources/skills';
+        $this->nativeSkillsDir = $nativeSkillsDir ?? \dirname(__DIR__).'/Resources/skills';
     }
 
     /**
