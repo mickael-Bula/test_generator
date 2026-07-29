@@ -157,7 +157,7 @@ php bin/console app:generate-test VatCalculator -m calculateNetAmountFromGross
 Afin d'obtenir un test très précis, il est possible de fournir un fichier de spécification (contexte) au format Markdown. 
 Ce fichier décrit les règles métier et les scénarios attendus.
 
-Le fichier de contexte peut être ajouté lors de la génération à l'aide de l'option `**--spec**`.
+Le fichier de contexte peut être ajouté lors de la génération à l'aide de l'option `**--spec**` (ou `**-s**`).
 
 ### 1. Génération du squelette de spécification
 
@@ -174,7 +174,7 @@ php bin/console app:test-spec App\Service\VatCalculator --method=applyDiscountAn
 
 ### 2. Renseignement du fichier de contexte
 
-Une fois le fichier Markdown généré dans votre dossier de spécifications (ex : tests/Specs/), 
+Une fois le fichier Markdown généré dans votre dossier de spécifications (ex : `tests/Specs/`), 
 éditez-le en respectant les étapes suivantes :
 
 1. Supprimer les crochets générés automatiquement dans le squelette.
@@ -198,17 +198,44 @@ correspond exactement au pattern classique d'un test unitaire : Arrange / Act / 
 
 ### 3. Exécution de la génération avec le fichier de contexte
 
-Lancez la commande de génération en spécifiant le chemin vers votre fichier de contexte à l'aide des commandes idoines :
+L'option `**--spec**` (ou `**-s**`) s'adapte à vos besoins :
+
+#### A. Convention automatique (recommandé)
+
+Si l'option est fournie sans valeur, la commande cherche automatiquement un fichier nommé <NomDeLaClasse>Spec.md dans le projet (ex: VatCalculatorSpec.md) :
 
 ```bash
-# Génération pour toute la classe en passant la spécification :
+# Détection automatique du fichier VatCalculatorSpec.md :
+php bin/console app:generate-test App\Service\VatCalculator --spec
+
+# Utilisation du raccourci -s :
+php bin/console app:generate-test App\Service\VatCalculator -s
+```
+
+#### B. Chemin ou nom de fichier explicite
+
+Vous pouvez spécifier un chemin relatif/absolu ou simplement le nom du fichier. 
+L'extension .md est optionnelle : elle est automatiquement ajoutée si elle est omise. 
+Notez que seul le format Markdown (.md) est pris en charge pour les fichiers de spécification.
+
+```bash
+# Recherche automatique avec ajout implicite de l'extension .md (VatCalculator -> VatCalculatorSpec.md) :
+php bin/console app:generate-test App\Service\VatCalculator --spec=VatCalculatorSpec
+
+# Génération en fournissant le chemin complet :
 php bin/console app:generate-test App\Service\VatCalculator --spec=tests/Specs/VatCalculatorSpec.md
 
-# Génération pour une méthode spécifique avec sa spécification :
-php bin/console app:generate-test App\Service\VatCalculator --method=applyDiscountAndCalculateGross --spec=tests/Specs/VatCalculator_applyDiscountAndCalculateGrossSpec.md
+# Cibler une méthode spécifique avec sa spécification dédiée :
+php bin/console app:generate-test App\Service\VatCalculator -m applyDiscountAndCalculateGross -s tests/Specs/VatCalculator_applyDiscountAndCalculateGross
+```
 
-# Recherche automatique du fichier par son nom unique dans le projet :
-php bin/console app:generate-test App\Service\VatCalculator --spec=VatCalculatorSpec.md
+#### C. Texte libre instantané
+
+Si vous souhaitez passer une consigne ponctuelle sans créer de fichier Markdown :
+
+```bash
+# Passage d'une consigne sous forme de texte brut :
+php bin/console app:generate-test App\Service\VatCalculator --spec="S'assurer de lever une exception si le montant hors taxe est négatif"
 ```
 
 ## Fonctionnalités & Architecture
