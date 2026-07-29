@@ -135,8 +135,9 @@ RÈGLE D'INFÉRENCE DES DÉPENDANCES ET MOCKS :
   2. Injecte ces mocks lors de l'instanciation de la classe à tester dans setUp().
   3. Dans chaque scénario BDD, configure les comportements de ces mocks (expects(), willReturn()) selon les besoins du test.
 - Si la classe à tester ne requiert aucun mock (ou uniquement des scalaires/primitifs) :
-  Instancie TOUJOURS la classe cible directement dans la méthode setUp() et stocke-la dans la propriété de classe correspondant (ex: $this->vatCalculator = new VatCalculator(20.0);).
-- Interdiction de ré-instancier la classe testée dans les méthodes de test.
+  - Si la classe conserve un état constant (ex: Service, Calculator), tu peux l'instancier dans la méthode setUp().
+  - POUR LES DTO, VALUE OBJECTS ET MODÈLES SANS DÉPENDANCES : N'écris NI propriété de classe, NI méthode setUp().
+    Instancie directement la classe cible dans chaque méthode de test sous la section // ÉTANT DONNÉ.
 - Ne demande pas à la spécification BDD de lister les mocks techniques : déduis-les toi-même à partir de la Repo-Map.
 TEXT;
 
@@ -164,6 +165,18 @@ EXIGENCES STRICTES DE QUALITÉ ET STYLE :
    - Il est STRICTEMENT INTERDIT d'écrire quoi que ce soit sur la même ligne après ces balises (ex: INTERDIT d'écrire "// ÉTANT DONNÉ un montant HT...").
    - Une seule assertion par scénario BDD : teste UNIQUEMENT la valeur de retour finale ou l'exception avec assertSame().
    - N'ajoute AUCUN message d'erreur personnalisé en 3e argument de assertSame() (ex: fais $this->assertSame($expected, $actual); uniquement).
+   - CAS PARTICULIER DES EXCEPTIONS : Lorsqu'un test vérifie le levé d'une exception via $this->expectException(...) :
+    1. Place l'enregistrement de l'attente ($this->expectException(...)) sous la section // ALORS.
+    2. Place l'appel de la méthode qui déclenche l'exception sous la section // QUAND, en TOUT DERNIER.
+    Exemple exact :
+      // ÉTANT DONNÉ
+      $invalidValue = -1;
+
+      // ALORS
+      $this->expectException(\InvalidArgumentException::class);
+
+      // QUAND
+      $this->service->doSomething($invalidValue);
 TEXT;
 
         if (null !== $skillsPrompt) {

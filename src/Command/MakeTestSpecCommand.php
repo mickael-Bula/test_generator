@@ -27,8 +27,17 @@ class MakeTestSpecCommand extends Command
     protected function configure(): void
     {
         $this
-            ->addArgument('class', InputArgument::REQUIRED, 'Nom complet de la classe à tester (ex: App\\Service\\VatCalculator ou VatCalculator)')
-            ->addOption('method', 'm', InputOption::VALUE_OPTIONAL, 'Nom de la méthode ciblée');
+            ->addArgument(
+                'class',
+                InputArgument::REQUIRED,
+                'Nom complet de la classe à tester (ex: App\\Service\\VatCalculator ou VatCalculator)'
+            )
+            ->addOption(
+                'method',
+                'm',
+                InputOption::VALUE_OPTIONAL,
+                'Nom de la méthode ciblée'
+            );
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int

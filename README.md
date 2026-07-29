@@ -342,3 +342,21 @@ if (!empty($skills)) {
 3. **Évolutivité** : Les utilisateurs du bundle pourront ajouter leurs propres fichiers de règles dans leur projet
    (ex : config/packages/generate_test/skills/my_custom_rules.md)
    pour adapter la génération de tests à leurs propres standards d'entreprise.
+
+## Règles de tests
+
+Pour les analyseurs d'AST (RepoMapBuilder) et le cache avec système de fichiers, 
+privilégier des tests d'intégration légers avec des répertoires temporaires réels 
+plutôt que de mocker les parseurs internes de la bibliothèque (ce qui est difficile à maintenir).
+Utiliser le parsing AST original (PHP-Parser) plutôt que des mocks est la décision d'architecture de test 
+la plus pragmatique et la plus solide, évitant d'avoir à mocker ParserFactory, Parser, NodeTraverser, NameResolver, etc.
+
+## Description de l'environnement de test
+
+- Tests unitaires dans tests/Unit/ : isolation totale, pas de DB, mocks phpUnit
+- Réplication de la structure de projet du dossier src/ dans le dossier tests/
+- PHPStan Level 6 — typage strict (évolution possible vers Level 8 ou 10 ?)
+- Pattern AAA (Arrange-Act-Assert) dans chaque test
+- Utilsation d'un dossier Dynamic pour conserver les essais du LLM avant validation par phpUnit
+- boucle itérative pour générer les tests, avec soumission du résultat de phpUnit à chaque nouvel appel
+
