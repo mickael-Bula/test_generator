@@ -19,9 +19,28 @@ readonly class SpecResolver
      * Tente de lire le contenu de la spec depuis un fichier s'il existe,
      * sinon retourne la chaîne brute fournie.
      */
-    public function resolve(?string $specOption, ?SymfonyStyle $io = null): ?string
+    public function resolve(string|bool|null $specOption, string $shortClassName, ?SymfonyStyle $io = null): ?string
     {
-        if (null === $specOption || '' === trim($specOption)) {
+        // Si `--spec` ou `-s` n'a pas été saisie
+        if (false === $specOption) {
+            return null;
+        }
+        // Si `--spec` ou `-s` a été passé SANS valeur ($specOption === null), on recherche un fichier <ClassName>Spec.md
+        if (null === $specOption) {
+            $conventionName = $shortClassName.'Spec.md';
+            $content = $this->resolveByFinderSearch($conventionName, $conventionName, $io);
+
+            if (null === $content && null !== $io) {
+                $io->warning(sprintf(
+                    'Option --spec présente sans valeur, mais aucun fichier "%s" n\'a été trouvé dans le projet.',
+                    $conventionName
+                ));
+            }
+
+            return $content;
+        }
+
+        if ('' === trim($specOption)) {
             return null;
         }
 

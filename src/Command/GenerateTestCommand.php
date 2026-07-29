@@ -59,7 +59,8 @@ class GenerateTestCommand extends Command
             'spec',
             's',
             InputOption::VALUE_OPTIONAL,
-            'Chemin vers un fichier de spécification (.md) ou consigne métier sous forme de texte'
+            'Fichier de spécification (.md), texte libre ou convention automatique (<SpecDir>/<ClassName>Spec.md) si aucun argument n\'est fourni.',
+            false // Valeur par défaut quand l'option --spec n'est pas présente dasn la commande
         );
     }
 
@@ -104,7 +105,7 @@ class GenerateTestCommand extends Command
         $specOption = $input->getOption('spec');
 
         // Résolution du contenu de la spécification
-        $specContent = $this->specResolver->resolve($specOption, $this->io);
+        $specContent = $this->specResolver->resolve($specOption, $shortClassName, $this->io);
 
         /** @var string|null $methodName */
         $methodName = $input->getOption('method');
