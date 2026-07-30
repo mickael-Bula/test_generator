@@ -11,6 +11,7 @@ use Symfony\AI\Platform\Message\MessageBag;
 use Symfony\AI\Platform\PlatformInterface;
 use Symfony\Component\DependencyInjection\Attribute\AutowireLocator;
 use Symfony\Component\DependencyInjection\ServiceLocator;
+use Symfony\Component\Serializer\SerializerInterface;
 
 /**
  * @noinspection PhpUnused
@@ -21,9 +22,10 @@ readonly class SymfonyAiClient implements LlmClientInterface
      * @param ServiceLocator<PlatformInterface> $platforms
      */
     public function __construct(
-        // On indique d'indexer le ServiceLocator avec la colonne "name" du tag, correspondant aux noms des providers.
-        #[AutowireLocator('ai.platform', indexAttribute: 'name')]
+        // On indique d'indexer le ServiceLocator avec la colonne "index" du tag, correspondant aux noms des providers.
+        #[AutowireLocator('ai.platform', indexAttribute: 'index')]
         private ServiceLocator $platforms,
+        private SerializerInterface $serializer,
         private string $defaultProvider = 'gemini',
         private string $defaultModel = 'gemini-2.5-flash-lite',
     ) {
@@ -68,28 +70,27 @@ readonly class SymfonyAiClient implements LlmClientInterface
 
         try {
             // 1. Invocation de la plateforme
-            $result = $platform->invoke(
-                $targetModel,
-                $messageBag
-            );
+            $deferredResult = $platform->invoke($targetModel, $messageBag);
 
-            // 2. Extraction du texte brut
-            $rawContent = trim($result->asText());
+            // 2. Extraction du texte brut avec la méthode asText()
+            $rawContent = $deferredResult->asText();
 
-            // 3. Nettoyage des balises Markdown (```json ... ``` ou ```php ... ```)
-            $cleanContent = preg_replace('/^```(?:json|php)?\s*/i', '', $rawContent);
-            $cleanContent = preg_replace('/\s*```$/', '', $cleanContent);
-            $cleanContent = trim($cleanContent);
+            // 3. Nettoyage strict des balises Markdown de début et de fin
+            $jsonString = preg_replace('/^```(?:json|php)?\s*/i', '', $rawContent);
+            $jsonString = preg_replace('/\s*```$/', '', $jsonString);
+            $jsonString = trim($jsonString);
 
-            // 4. Extraction et instanciation du DTO
-            $decoded = json_decode($cleanContent, true, 512, JSON_THROW_ON_ERROR);
+            // Tentative de désérialisation vers le DTO
+            try {
+                $testResult = $this->serializer->deserialize($jsonString, GeneratedTestResult::class, 'json');
 
-            $testResult = is_array($decoded) && isset($decoded['test_code'])
-                ? new GeneratedTestResult($decoded['test_code']) // Le LLM a bien répondu avec la structure JSON demandée
-                : new GeneratedTestResult($cleanContent); // Fallback : Le LLM a renvoyé directement du code PHP brut
+                return $testResult->getCleanTestCode();
+            } catch (\Throwable) {
+                // Fallback si le LLM a répondu directement en code PHP brut au lieu du JSON
+                $testResult = new GeneratedTestResult($jsonString);
 
-            // 5. Retour du code PHP propre
-            return $testResult->getCleanTestCode();
+                return $testResult->getCleanTestCode();
+            }
         } catch (\Throwable $e) {
             $message = sprintf(
                 'Erreur lors de la génération avec Symfony AI (%s/%s) : %s',

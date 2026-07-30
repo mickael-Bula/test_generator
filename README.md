@@ -2,24 +2,25 @@
 
 Le présent projet vise à créer un outil de génération automatique de tests unitaires PHPUnit en s'appuyant sur un modèle de langage (LLM).
 
-Dans un souci de flexibilité, l'application s'appuie sur le client **Symfony AI** (`symfony/ai-bundle`). 
-Il est ainsi possible d'interconnecter facilement plusieurs fournisseurs de LLM :
+Dans un souci de flexibilité, l'application s'appuie sur le composant **Symfony AI Platform** (`symfony/ai-platform`).
+Il est ainsi possible d'interconnecter facilement plusieurs fournisseurs de LLM via leurs ponts (*bridges*) respectifs :
 - **Ollama** (modèles locaux)
 - **Anthropic** (Claude)
 - **Google Gemini**
 - **OpenRouter**
 - **OpenAI** (ChatGPT)
 
-L'ajout ou le retrait d'un provider s'effectue simplement par l'installation du paquet dédié via Composer 
-(ex : `composer require symfony/ai-open-router-platform`). 
-Les configurations spécifiques à chaque fournisseur s'effectuent ensuite directement dans le dossier `config/packages/` 
-et via les variables d'environnement (`.env` / `.env.local`).
+L'ajout ou le retrait d'un provider s'effectue simplement par l'installation du pont dédié via Composer 
+(ex : `composer require symfony/ai-gemini-platform`).
+La gestion des plateformes est centralisée via une fabrique personnalisée (`AiPlatformFactory`) 
+et configurée dans `config/services.yaml` ainsi que les variables d'environnement (`.env` / `.env.local`).
 
 ---
 
 ## Configuration des fournisseurs (LLM Providers)
 
-Grâce à **Symfony AI**, vous pouvez basculer d'un fournisseur à un autre ou en combiner plusieurs selon vos besoins.
+Grâce à **Symfony AI Platform**, 
+vous pouvez basculer d'un fournisseur à un autre ou en combiner plusieurs selon vos besoins en modifiant la variable `LLM_PROVIDER`.
 
 ### 1. Configuration pour un LLM local (Ollama)
 
@@ -44,7 +45,7 @@ LLM_MODEL="gemini-flash-latest" # Alias stable pointant vers la version Flash la
 GEMINI_API_KEY="AIzaSyXXXXX"
 ```
 
-> Note : Une clé API peut être générée sur [Google Studio](https://aistudio.google.com/).
+>Note : Une clé API peut être générée sur [Google Studio](https://aistudio.google.com/).
 
 ### 3. Configuration pour un agrégateur de LLM distants (OpenRouter)
 
@@ -61,16 +62,27 @@ OPENROUTER_API_KEY="sk-or-v1-XXXXX"
 ### 4. Configuration pour Anthropic ou OpenAI
 
 ```bash
-# Anthropic
+# Pour Anthropic
+LLM_PROVIDER="anthropic"
+LLM_MODEL="claude-3-5-sonnet-latest"
 ANTHROPIC_API_KEY="sk-ant-api03-XXXXX"
 
-# OpenAI
+# Pour OpenAI
+LLM_PROVIDER="openai"
+LLM_MODEL="gpt-4o-mini"
 OPENAI_API_KEY="sk-proj-XXXXX"
 ```
 
->NOTE : Les paramètres de chaque provider sont déclarés et personnalisables 
-> dans leurs fichiers de configuration respectifs sous `config/packages/ai.yaml `
-> (ou dans des fichiers dédiés par plateforme).
+### 5. Architecture technique
+
+L'intégration repose sur trois éléments clés :
+
+1. `App\Service\AiPlatformFactory` : Instancie et configure les différents providers Symfony AI (`Platform`) 
+    avec leurs dépendances (clefs d'API, `HttpClientInterface`).
+2. `config/services.yaml` : Déclare et étiquette chaque plateforme pour alimenter un `ServiceLocator`
+   (`tags: [{ name: 'ai.platform', index: 'gemini' }]`).
+3. `App\Llm\SymfonyAiClient` : Client unifié injectant le `ServiceLocator` pour consommer les plateformes 
+    et parser la réponse grâce au DTO `GeneratedTestResult` et au `SerializerInterface`.
 
 ---
 
@@ -81,24 +93,26 @@ C:\laragon\www
 symfony new test_generator
 cd test_generator
 
-# Ajout des dépendances
+# Dépendances de développement et de qualité de code
 composer require --dev symfony/test-pack
 composer require --dev symfony/maker-bundle
-composer require symfony/http-client
 composer require --dev phpstan/phpstan
 composer require --dev friendsofphp/php-cs-fixer
+
+# Composants Symfony requis
+composer require symfony/http-client
 composer require symfony/process
+composer require symfony/serializer
 composer require nikic/php-parser
-# Le bundle Symfony
-composer require symfony/ai-bundle
-# Les bridges des fournisseurs supportés
+
+# Composant de base Symfony AI Platform
+composer require symfony/ai-platform
+
+# Ponts (Bridges) officiels supportés
 composer require symfony/ai-open-ai-platform
 composer require symfony/ai-anthropic-platform
 composer require symfony/ai-ollama-platform
-# Bridge de Google Gelini
-composer require symfony/ai-vertex-ai-platform
-#Bridge de OpenRouter
-composer require symfony/ai-open-router-platform
+composer require symfony/ai-gemini-platform
 ```
 
 ## Ajout de raccourcis pour PhpStan et PHP-CS-fixer dans le composer.json

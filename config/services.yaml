@@ -32,11 +32,62 @@ services:
         App\Llm\LlmClientInterface:
             tags: [ 'app.llm_client' ]
 
+    App\Service\AiPlatformFactory:
+        arguments:
+            $geminiKey: '%env(string:default::GEMINI_API_KEY)%'
+            $openAiKey: '%env(string:default::OPENAI_API_KEY)%'
+            $anthropicKey: '%env(string:default::ANTHROPIC_API_KEY)%'
+            $openRouterKey: '%env(string:default::OPENROUTER_API_KEY)%'
+            $ollamaUrl: '%env(string:default::OLLAMA_HOST)%'
+
     # On configure la Factory avec les variables déclarées dans le .env
     App\Llm\LlmClientFactory:
         arguments:
             $defaultProvider: '%env(default::LLM_PROVIDER)%'
             $defaultModel: '%env(default::LLM_MODEL)%'
+
+    # -------------------------------------------------------------------------
+    # Plateformes Symfony AI individuelles étiquetées pour le ServiceLocator
+    # -------------------------------------------------------------------------
+
+    # Platform Gemini
+    ai.platform.gemini:
+        class: Symfony\AI\Platform\Platform
+        factory: ['@App\Service\AiPlatformFactory', 'createGeminiPlatform']
+        tags:
+            - { name: 'ai.platform', index: 'gemini' }
+
+    # Platform OpenAI
+    ai.platform.openai:
+        class: Symfony\AI\Platform\Platform
+        factory: ['@App\Service\AiPlatformFactory', 'createOpenAiPlatform']
+        tags:
+            - { name: 'ai.platform', index: 'openai' }
+
+    # Platform Anthropic
+    ai.platform.anthropic:
+        class: Symfony\AI\Platform\Platform
+        factory: ['@App\Service\AiPlatformFactory', 'createAnthropicPlatform']
+        tags:
+            - { name: 'ai.platform', index: 'anthropic' }
+
+    # Platform OpenRouter
+    ai.platform.openrouter:
+        class: Symfony\AI\Platform\Platform
+        factory: [ '@App\Service\AiPlatformFactory', 'createOpenRouterPlatform' ]
+        tags:
+            - { name: 'ai.platform', index: 'openrouter' }
+
+    # Platform Ollama
+    ai.platform.ollama:
+        class: Symfony\AI\Platform\Platform
+        factory: ['@App\Service\AiPlatformFactory', 'createOllamaPlatform']
+        tags:
+            - { name: 'ai.platform', index: 'ollama' }
+
+#    # Alias / Interface principale à injecter dans les contrôleurs / services
+#    Symfony\AI\Platform\PlatformInterface:
+#        factory: ['@App\Service\AiPlatformFactory', 'createPlatform']
 
     # Configuration spécifique pour le client Ollama
 #    App\Llm\OllamaClient:
