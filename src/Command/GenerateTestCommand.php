@@ -59,7 +59,8 @@ class GenerateTestCommand extends Command
             'spec',
             's',
             InputOption::VALUE_OPTIONAL,
-            'Fichier de spécification (.md), texte libre ou convention automatique (<SpecDir>/<ClassName>Spec.md) si aucun argument n\'est fourni.',
+            'Fichier de spécification (.md), texte libre ou convention automatique '
+                .'(<SpecDir>/<ClassName>Spec.md) si aucun argument n\'est fourni.',
             false // Valeur par défaut quand l'option --spec n'est pas présente dasn la commande
         );
     }
