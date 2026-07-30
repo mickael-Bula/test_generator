@@ -67,19 +67,37 @@ readonly class SymfonyAiClient implements LlmClientInterface
         }
 
         try {
-            // On passe le DTO dans les options de la requête
+            // 1. Invocation de la plateforme
             $result = $platform->invoke(
                 $targetModel,
-                $messageBag,
-                ['response_format' => GeneratedTestResult::class]
+                $messageBag
             );
 
-            /** @var GeneratedTestResult $testResult */
-            $testResult = $result->asObject();
+            // 2. Extraction du texte brut
+            $rawContent = trim($result->asText());
 
+            // 3. Nettoyage des balises Markdown (```json ... ``` ou ```php ... ```)
+            $cleanContent = preg_replace('/^```(?:json|php)?\s*/i', '', $rawContent);
+            $cleanContent = preg_replace('/\s*```$/', '', $cleanContent);
+            $cleanContent = trim($cleanContent);
+
+            // 4. Extraction et instanciation du DTO
+            $decoded = json_decode($cleanContent, true, 512, JSON_THROW_ON_ERROR);
+
+            $testResult = is_array($decoded) && isset($decoded['test_code'])
+                ? new GeneratedTestResult($decoded['test_code']) // Le LLM a bien répondu avec la structure JSON demandée
+                : new GeneratedTestResult($cleanContent); // Fallback : Le LLM a renvoyé directement du code PHP brut
+
+            // 5. Retour du code PHP propre
             return $testResult->getCleanTestCode();
         } catch (\Throwable $e) {
-            throw new TestGenerationException(sprintf('Erreur lors de la génération avec Symfony AI (%s/%s) : %s', $provider, $targetModel, $e->getMessage()), 0, $e);
+            $message = sprintf(
+                'Erreur lors de la génération avec Symfony AI (%s/%s) : %s',
+                $provider,
+                $targetModel,
+                $e->getMessage()
+            );
+            throw new TestGenerationException($message, 0, $e);
         }
     }
 }
