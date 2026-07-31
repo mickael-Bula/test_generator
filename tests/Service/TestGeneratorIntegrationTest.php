@@ -8,6 +8,7 @@ use App\Exception\TestCorrectionException;
 use App\Exception\TestGenerationException;
 use App\Llm\LlmClientFactory;
 use App\Llm\LlmClientInterface;
+use App\PromptBuilder\UnitTestPromptBuilder;
 use App\RepoMap\CachedRepoMapBuilder;
 use App\Resolver\SkillResolver;
 use App\Service\PhpUnitTestRunner;
@@ -72,6 +73,13 @@ class TestGeneratorIntegrationTest extends TestCase
 
         $skillResolverMock = $this->createMock(SkillResolver::class);
 
+        // Instancie UnitTestPromptBuilder avec des mocks de ses dépendances.
+        $promptBuilder = new UnitTestPromptBuilder(
+            $repoMapBuilderMock,
+            $skillResolverMock,
+            '/fake/project/dir'
+        );
+
         $llmClientMock = $this->createMock(LlmClientInterface::class);
 
         // Le client LLM renvoie le code PHP extrait du JSON
@@ -85,10 +93,8 @@ class TestGeneratorIntegrationTest extends TestCase
 
         $generator = new TestGenerator(
             $factoryMock,
-            $repoMapBuilderMock,
             $testRunnerMock,
-            $skillResolverMock,
-            '/fake/project/dir'
+            [$promptBuilder], // Collection d'itérables
         );
 
         // --- EXÉCUTION ---
@@ -131,6 +137,13 @@ class TestGeneratorIntegrationTest extends TestCase
 
         $skillResolverMock = $this->createMock(SkillResolver::class);
 
+        // Instancie UnitTestPromptBuilder avec des mocks de ses dépendances.
+        $promptBuilder = new UnitTestPromptBuilder(
+            $repoMapBuilderMock,
+            $skillResolverMock,
+            '/fake/project/dir'
+        );
+
         // Variable pour capturer les messages envoyés au client LLM.
         $capturedMessages = [];
 
@@ -151,10 +164,8 @@ class TestGeneratorIntegrationTest extends TestCase
 
         $generator = new TestGenerator(
             $factoryMock,
-            $repoMapBuilderMock,
             $testRunnerMock,
-            $skillResolverMock,
-            '/fake/project/dir'
+            [$promptBuilder],
         );
 
         // --- EXÉCUTION ---
@@ -220,14 +231,19 @@ class TestGeneratorIntegrationTest extends TestCase
 
         $skillResolverMock = $this->createMock(SkillResolver::class);
 
+        // Instancie UnitTestPromptBuilder avec des mocks de ses dépendances.
+        $promptBuilder = new UnitTestPromptBuilder(
+            $repoMapBuilderMock,
+            $skillResolverMock,
+            '/fake/project/dir'
+        );
+
         // --- EXECUTION ---
         // Instanciation de TestGenerator avec ses mocks
         $generator = new TestGenerator(
             $factoryMock,
-            $repoMapBuilderMock,
             $testRunnerMock, // Injection du mock du runner
-            $skillResolverMock,
-            '/fake/project/dir'
+            [$promptBuilder],
         );
 
         // Exécution de la méthode

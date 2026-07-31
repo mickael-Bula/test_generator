@@ -173,6 +173,25 @@ Ce fichier décrit les règles métier et les scénarios attendus.
 
 Le fichier de contexte peut être ajouté lors de la génération à l'aide de l'option `**--spec**` (ou `**-s**`).
 
+## Spécifier le type de test : unitaire ou fonctionnel
+
+```bash
+# 1. Par défaut : Test unitaire
+php bin/console app:generate-test "App\Service\VatCalculator"
+
+# 2. Explicite : Test unitaire
+php bin/console app:generate-test "App\Service\VatCalculator" -u
+php bin/console app:generate-test "App\Service\VatCalculator" --unit
+
+# 3. Test fonctionnel
+php bin/console app:generate-test "App\Controller\InvoiceController" -f
+php bin/console app:generate-test "App\Controller\InvoiceController" --functional
+
+# 4. Erreur explicite si les deux sont passés
+php bin/console app:generate-test "App\Service\VatCalculator" -u -f
+# [ERROR] Vous ne pouvez pas spécifier à la fois --unit (-u) et --functional (-f). 
+```
+
 ### 1. Génération du squelette de spécification
 
 Pour vous aider à rédiger ce fichier, 

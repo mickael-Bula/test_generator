@@ -27,10 +27,15 @@ services:
             - '../src/Entity/'
             - '../src/Kernel.php'
 
-    # On ajoute un tag à tous les clients qui implémentent l'interface LlmClientInterface
     _instanceof:
+        # On ajoute un tag à tous les clients qui implémentent l'interface LlmClientInterface
         App\Llm\LlmClientInterface:
             tags: [ 'app.llm_client' ]
+
+        # On ajoute un tag à tous les clients qui implémentent l'interface TestPromptBuilderInterface
+        App\PromptBuilder\TestPromptBuilderInterface:
+            tags: [ 'app.test_prompt_builder']
+
 
     App\Service\AiPlatformFactory:
         arguments:
@@ -84,10 +89,6 @@ services:
         factory: ['@App\Service\AiPlatformFactory', 'createOllamaPlatform']
         tags:
             - { name: 'ai.platform', index: 'ollama' }
-
-#    # Alias / Interface principale à injecter dans les contrôleurs / services
-#    Symfony\AI\Platform\PlatformInterface:
-#        factory: ['@App\Service\AiPlatformFactory', 'createPlatform']
 
     # Configuration spécifique pour le client Ollama
 #    App\Llm\OllamaClient:

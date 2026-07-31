@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Command;
 
+use App\Enum\TestType;
 use App\Exception\TestCorrectionException;
 use App\Llm\LlmClientFactory;
 use App\Resolver\ClassResolver;
@@ -62,6 +63,18 @@ class GenerateTestCommand extends Command
             'Fichier de spécification (.md), texte libre ou convention automatique '
                 .'(<SpecDir>/<ClassName>Spec.md) si aucun argument n\'est fourni.',
             false // Valeur par défaut quand l'option --spec n'est pas présente dasn la commande
+        )
+        ->addOption(
+            'unit',
+            'u',
+            InputOption::VALUE_NONE,
+            'Générer un test unitaire (par défaut)'
+        )
+        ->addOption(
+            'functional',
+            'f',
+            InputOption::VALUE_NONE,
+            'Générer un test fonctionnel'
         );
     }
 
@@ -79,6 +92,19 @@ class GenerateTestCommand extends Command
 
             $fqcn = $resolved['className'];
             $filePath = $resolved['filePath'];
+
+            $isUnit = (bool) $input->getOption('unit');
+            $isFunctional = (bool) $input->getOption('functional');
+
+            // Validation : empêcher d'activer les deux flags en même temps
+            if ($isUnit && $isFunctional) {
+                $this->io->error('Vous ne pouvez pas spécifier à la fois --unit (-u) et --functional (-f).');
+
+                return Command::FAILURE;
+            }
+
+            // Détermination du type (par défaut : UNIT).
+            $testType = $isFunctional ? TestType::FUNCTIONAL : TestType::UNIT;
 
             // Si le fichier n'existe pas, on arrête l'exécution de la commande.
             if (!file_exists($filePath)) {
@@ -111,7 +137,7 @@ class GenerateTestCommand extends Command
         /** @var string|null $methodName */
         $methodName = $input->getOption('method');
 
-        $this->io->title(sprintf('Analyse et génération de test pour : %s', $shortClassName));
+        $this->io->title(sprintf('Analyse et génération de test %s pour : %s', $testType->label(), $shortClassName));
 
         if ($methodName) {
             $this->io->text(sprintf('Cible spécifique : la méthode <info>%s()</info>', $methodName));
@@ -149,9 +175,9 @@ class GenerateTestCommand extends Command
                 $this->io->note('Un fichier de test existant a été détecté. Il va être transmis au LLM pour fusion.');
                 $existingTestCode = file_get_contents($finalAbsoluteFilePath);
                 $existingTestCode = $this->replaceDynamicHeadersInExistingTestCode(
-                    $existingTestCode,
-                    $targetNamespace,
-                    $shortClassName
+                    existingTestCode: $existingTestCode,
+                    targetNamespace: $targetNamespace,
+                    className: $shortClassName,
                 );
             }
 
@@ -164,13 +190,14 @@ class GenerateTestCommand extends Command
             // Appel du LLM
             try {
                 $testCode = $this->testGenerator->generateForClass(
-                    $classCode,
-                    $fqcn,
-                    $shortClassName,
-                    $model,
-                    $methodName,
-                    $existingTestCode,
-                    $specContent
+                    classCode: $classCode,
+                    fqcn: $fqcn,
+                    className: $shortClassName,
+                    model: $model,
+                    methodName: $methodName,
+                    existingTestCode: $existingTestCode,
+                    specContent: $specContent,
+                    type: $testType->value,
                 );
             } catch (\RuntimeException|TestCorrectionException $e) {
                 // Intercepte les erreurs de Repo-Map ainsi que l'échec de correction PHPUnit
@@ -179,7 +206,11 @@ class GenerateTestCommand extends Command
                 return Command::FAILURE;
             }
 
-            $testCode = $this->replaceDynamicHeadersInTestCode($testCode, $targetNamespace, $shortClassName);
+            $testCode = $this->replaceDynamicHeadersInTestCode(
+                testCode: $testCode,
+                targetNamespace: $targetNamespace,
+                className: $shortClassName,
+            );
 
             file_put_contents($finalAbsoluteFilePath, $testCode);
 
@@ -194,7 +225,13 @@ class GenerateTestCommand extends Command
                 ]);
             } else {
                 $relativeLogPath = str_replace($this->projectDir.'/', '', $finalAbsoluteFilePath);
-                $this->io->success(sprintf('Le fichier de test a été généré avec succès dans : %s', $relativeLogPath));
+                $this->io->success(
+                    sprintf(
+                        'Le fichier de test %s a été généré avec succès dans : %s',
+                        $testType->label(),
+                        $relativeLogPath
+                    )
+                );
             }
 
             return Command::SUCCESS;
