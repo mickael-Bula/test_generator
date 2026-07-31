@@ -14,7 +14,6 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
-use Random\RandomException;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Tester\CommandTester;
 use Symfony\Component\Filesystem\Filesystem;
@@ -30,9 +29,6 @@ final class GenerateTestCommandTest extends TestCase
     private SpecResolver&MockObject $specResolver;
     private GenerateTestCommand $command;
 
-    /**
-     * @throws RandomException
-     */
     protected function setUp(): void
     {
         $this->tempDir = sys_get_temp_dir().'/test_'.bin2hex(random_bytes(8));
@@ -261,5 +257,171 @@ final class GenerateTestCommandTest extends TestCase
 
         // ALORS
         $this->assertSame(Command::FAILURE, $statusCode);
+    }
+
+    #[Test]
+    public function testExecuteWithoutTypeOptionGeneratesUnitTest(): void
+    {
+        // ÉTANT DONNÉ
+        $srcDir = $this->tempDir.'/src/Service';
+        mkdir($srcDir, 0777, true);
+        $filePath = $srcDir.'/Calculator.php';
+        file_put_contents($filePath, '<?php namespace App\Service; class Calculator {}');
+
+        $this->classResolver->method('resolve')
+            ->willReturn([
+                'className' => 'App\Service\Calculator',
+                'filePath' => $filePath,
+            ]);
+        $this->llmFactory->method('getDefaultModel')
+            ->willReturn('default-model');
+        $this->specResolver->method('resolve')
+            ->willReturn(null);
+
+        $this->testGenerator->expects($this->once())
+            ->method('generateForClass')
+            ->with(
+                $this->anything(),
+                $this->anything(),
+                $this->anything(),
+                $this->anything(),
+                $this->anything(),
+                $this->anything(),
+                $this->anything(),
+                'unit'
+            )
+            ->willReturn("<?php\nnamespace App\Tests\Command;\nclass CalculatorDynamicTest {}");
+
+        $commandTester = new CommandTester($this->command);
+
+        // QUAND
+        $statusCode = $commandTester->execute(['class' => 'App\Service\Calculator']);
+
+        // ALORS
+        $this->assertSame(Command::SUCCESS, $statusCode);
+    }
+
+    #[Test]
+    public function testExecuteWithUnitOptionShortForm(): void
+    {
+        // ÉTANT DONNÉ
+        $srcDir = $this->tempDir.'/src/Service';
+        mkdir($srcDir, 0777, true);
+        $filePath = $srcDir.'/Calculator.php';
+        file_put_contents($filePath, '<?php namespace App\Service; class Calculator {}');
+
+        $this->classResolver->method('resolve')
+            ->willReturn([
+                'className' => 'App\Service\Calculator',
+                'filePath' => $filePath,
+            ]);
+        $this->llmFactory->method('getDefaultModel')
+            ->willReturn('default-model');
+        $this->specResolver->method('resolve')
+            ->willReturn(null);
+
+        $this->testGenerator->expects($this->once())
+            ->method('generateForClass')
+            ->with(
+                $this->anything(),
+                $this->anything(),
+                $this->anything(),
+                $this->anything(),
+                $this->anything(),
+                $this->anything(),
+                $this->anything(),
+                'unit'
+            )
+            ->willReturn("<?php\nnamespace App\Tests\Command;\nclass CalculatorDynamicTest {}");
+
+        $commandTester = new CommandTester($this->command);
+
+        // QUAND
+        $statusCode = $commandTester->execute([
+            'class' => 'App\Service\Calculator',
+            '-u' => true,
+        ]);
+
+        // ALORS
+        $this->assertSame(Command::SUCCESS, $statusCode);
+        $this->assertStringContainsString('unitaire', $commandTester->getDisplay());
+    }
+
+    #[Test]
+    public function testExecuteWithFunctionalOptionLongForm(): void
+    {
+        // ÉTANT DONNÉ
+        $srcDir = $this->tempDir.'/src/Controller';
+        mkdir($srcDir, 0777, true);
+        $filePath = $srcDir.'/InvoiceController.php';
+        file_put_contents($filePath, '<?php namespace App\Controller; class InvoiceController {}');
+
+        $this->classResolver->method('resolve')
+            ->willReturn([
+                'className' => 'App\Controller\InvoiceController',
+                'filePath' => $filePath,
+            ]);
+        $this->llmFactory->method('getDefaultModel')
+            ->willReturn('default-model');
+        $this->specResolver->method('resolve')
+            ->willReturn(null);
+
+        $this->testGenerator->expects($this->once())
+            ->method('generateForClass')
+            ->with(
+                $this->anything(),
+                $this->anything(),
+                $this->anything(),
+                $this->anything(),
+                $this->anything(),
+                $this->anything(),
+                $this->anything(),
+                'functional'
+            )
+            ->willReturn("<?php\nnamespace App\Tests\Command;\nclass InvoiceControllerDynamicTest {}");
+
+        $commandTester = new CommandTester($this->command);
+
+        // QUAND
+        $statusCode = $commandTester->execute([
+            'class' => 'App\Controller\InvoiceController',
+            '--functional' => true,
+        ]);
+
+        // ALORS
+        $this->assertSame(Command::SUCCESS, $statusCode);
+        $this->assertStringContainsString('fonctionnel', $commandTester->getDisplay());
+    }
+
+    #[Test]
+    public function testExecuteFailsWhenCombiningUnitAndFunctionalOptions(): void
+    {
+        // ÉTANT DONNÉ
+        $srcDir = $this->tempDir.'/src/Service';
+        mkdir($srcDir, 0777, true);
+        $filePath = $srcDir.'/Calculator.php';
+        file_put_contents($filePath, '<?php namespace App\Service; class Calculator {}');
+
+        $this->classResolver->method('resolve')
+            ->willReturn([
+                'className' => 'App\Service\Calculator',
+                'filePath' => $filePath,
+            ]);
+
+        $this->testGenerator->expects($this->never())
+            ->method('generateForClass');
+
+        $commandTester = new CommandTester($this->command);
+
+        // QUAND
+        $statusCode = $commandTester->execute([
+            'class' => 'App\Service\Calculator',
+            '-u' => true,
+            '-f' => true,
+        ]);
+
+        // ALORS
+        $this->assertSame(Command::FAILURE, $statusCode);
+        $this->assertStringContainsString('Vous ne pouvez pas spécifier à la fois --unit (-u) et --functional (-f).', $commandTester->getDisplay());
     }
 }

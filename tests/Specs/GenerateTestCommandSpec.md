@@ -2,7 +2,12 @@
 
 ## Configuration de la commande
 - **Étant donné** la commande `app:generate-test`
-- **Alors** elle doit être enregistrée avec l'argument obligatoire `class` et les options optionnelles `method` (`-m`), `model` et `spec` (`-s`).
+- **Alors** elle doit être enregistrée avec :
+    - L'argument obligatoire `class`
+    - Les options optionnelles `method` (`-m`), `model` et `spec` (`-s`)
+    - Les flags optionnels et mutuellement exclusifs `unit` (`-u`) et `functional` (`-f`)
+
+---
 
 ## Scénario 1 : Échec si la classe ou le fichier cible n'existe pas
 - **Étant donné** une entrée utilisateur pour l'argument `class` que `ClassResolver` ne peut pas résoudre ou dont le fichier n'existe pas sur le disque
@@ -40,7 +45,39 @@
 - **Alors** un avertissement est affiché et la commande s'arrête en retournant `Command::FAILURE` (`1`).
 
 ## Scénario 6 : Gestion des exceptions du générateur ou du LLM
-- **Étant donné** que `TestGenerator::generateForClass()` lève une `TestCorrectionException` ou une `RuntimeException` (ex: échec de correction PHPUnit ou erreur de Repo-Map)
+- **Étant donné** que `TestGenerator::generateForClass()` lève une `TestCorrectionException` ou une `RuntimeException` 
+  (ex : échec de correction PHPUnit ou erreur de Repo-Map)
 - **Lorsque** l'on exécute la commande
 - **Alors** le message d'erreur de l'exception est affiché dans le terminal
 - **Et** la commande s'arrête proprement en retournant `Command::FAILURE` (`1`).
+
+---
+
+## Gestion des types de tests (Unitaire / Fonctionnel)
+
+## Scénario 7 : Exécution par défaut sans option de type (Test unitaire par défaut)
+- **Étant donné** que l'utilisateur lance la commande sans passer ni `-u` ni `-f`
+- **Lorsque** l'on exécute la commande
+- **Alors** le service `TestGenerator` doit être appelé avec le paramètre `type: 'unit'`
+- **Et** la commande se termine avec le code de statut `Command::SUCCESS` (`0`).
+
+## Scénario 8 : Exécution explicite de l'option unitaire (-u / --unit)
+- **Étant donné** que l'utilisateur spécifie l'option `-u` ou `--unit`
+- **Lorsque** l'on exécute la commande
+- **Alors** le service `TestGenerator` est appelé avec `type: 'unit'`
+- **Et** l'affichage de la console indique la génération d'un test "unitaire"
+- **Et** la commande retourne `Command::SUCCESS` (`0`).
+
+## Scénario 9 : Exécution explicite de l'option fonctionnelle (-f / --functional)
+- **Étant donné** que l'utilisateur spécifie l'option `-f` ou `--functional`
+- **Lorsque** l'on exécute la commande
+- **Alors** le service `TestGenerator` est appelé avec `type: 'functional'`
+- **Et** l'affichage de la console indique la génération d'un test "fonctionnel"
+- **Et** la commande retourne `Command::SUCCESS` (`0`).
+
+## Scénario 10 : Échec lors de la combinaison des options -u et -f
+- **Étant donné** que l'utilisateur passe simultanément les options `-u` et `-f`
+- **Lorsque** l'on exécute la commande
+- **Alors** `TestGenerator` ne doit jamais être appelé
+- **Et** la console affiche un message d'erreur expliquant que les deux options ne peuvent pas être combinées
+- **Et** la commande s'arrête immédiatement en retournant `Command::FAILURE` (`1`).
