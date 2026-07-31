@@ -155,7 +155,7 @@ class GenerateTestCommand extends Command
                 );
             }
 
-            $this->io->comment('Envoi du code au LLM...');
+            $this->io->comment(sprintf('Envoi du code au LLM (%s)...', $model));
 
             if ($specContent) {
                 $this->io->info('Une spécification métier a été injectée dans le contexte du LLM.');
