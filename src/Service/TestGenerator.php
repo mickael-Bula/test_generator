@@ -7,7 +7,7 @@ namespace App\Service;
 use App\Exception\TestCorrectionException;
 use App\Llm\LlmClientFactory;
 use App\PromptBuilder\TestPromptBuilderInterface;
-use Symfony\Component\DependencyInjection\Attribute\TaggedIterator;
+use Symfony\Component\DependencyInjection\Attribute\AutowireIterator;
 
 readonly class TestGenerator
 {
@@ -19,7 +19,7 @@ readonly class TestGenerator
     public function __construct(
         private LlmClientFactory $llmFactory,
         private PhpUnitTestRunner $testRunner,
-        #[TaggedIterator('app.test_prompt_builder')] // Récupère toutes les classes portant ce tag
+        #[AutowireIterator('app.test_prompt_builder')] // Récupère toutes les classes portant ce tag
         private iterable $promptBuilders,
     ) {
     }
