@@ -75,7 +75,6 @@ readonly class TestGenerator
         $targetModel = $model ?? $this->llmFactory->getDefaultModel();
 
         $attempt = 0;
-        $rawContent = '';
 
         while ($attempt < self::MAX_ATTEMPT) {
             ++$attempt;
@@ -93,7 +92,7 @@ readonly class TestGenerator
             $errorMessage = sprintf("L'exécution de PHPUnit a échoué :\n\n%s", $result['output']);
 
             // 3. Enrichissement de l'historique (Partagé pour PHPUnit ET erreurs JSON).
-            $messages[] = ['role' => 'assistant', 'content' => $rawContent];
+            $messages[] = ['role' => 'assistant', 'content' => $testCode];
             $messages[] = [
                 'role' => 'user',
                 'content' => $errorMessage."\n\nAnalyse ce problème, corrige ton code et renvoie le JSON attendu.",
