@@ -21,6 +21,7 @@
         "symfony/http-client": "7.4.*",
         "symfony/process": "7.4.*",
         "symfony/runtime": "7.4.*",
+        "symfony/serializer": "7.4.*",
         "symfony/yaml": "7.4.*"
     },
     "require-dev": {
@@ -73,7 +74,7 @@
         ],
         "phpstan": "vendor/bin/phpstan analyse",
         "cs-check": "vendor/bin/php-cs-fixer fix --dry-run --diff",
-        "cs-fix": "vendor/bin/php-cs-fixer fix",
+        "fix": "vendor/bin/php-cs-fixer fix",
         "test": "vendor/bin/phpunit",
         "ci": [
             "@cs-check",
