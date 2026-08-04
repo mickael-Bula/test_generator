@@ -56,7 +56,8 @@ class MakeTestSpecCommand extends Command
             : 'test_spec_class_template.md'; // Spec globale pour la classe
 
         // Chemin du template
-        $templatePath = $this->projectDir.'/templates/'.$templateName;
+        $templatePath = $this->projectDir.DIRECTORY_SEPARATOR.'spec-templates'.DIRECTORY_SEPARATOR.$templateName;
+
         if (!file_exists($templatePath)) {
             $io->error(sprintf('Le template "%s" n\'existe pas.', $templatePath));
 
@@ -73,14 +74,14 @@ class MakeTestSpecCommand extends Command
         );
 
         // Détermination du nom de destination.
-        $specsDir = $this->projectDir.'/tests/Specs';
+        $specsDir = $this->projectDir.DIRECTORY_SEPARATOR.'tests'.DIRECTORY_SEPARATOR.'Specs';
         if (!is_dir($specsDir) && !mkdir($specsDir, 0777, true) && !is_dir($specsDir)) {
             throw new \RuntimeException(sprintf('Directory "%s" was not created', $specsDir));
         }
 
         // Résultat en partant de la racine du projet : ./tests/Specs/VatCalculator_CalculateVTA
         $suffix = $methodName ? '_'.$methodName : '';
-        $targetPath = sprintf('%s/%s%sSpec.md', $specsDir, $shortClassName, $suffix);
+        $targetPath = sprintf('%s%s%s%sSpec.md', $specsDir, DIRECTORY_SEPARATOR, $shortClassName, $suffix);
 
         file_put_contents($targetPath, $specContent);
 

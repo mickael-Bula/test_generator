@@ -15,7 +15,7 @@ class SkillResolver
         ?string $nativeSkillsDir = null,
     ) {
         // Chemin relatif vers src/Resources/skills
-        $this->nativeSkillsDir = $nativeSkillsDir ?? \dirname(__DIR__).'/Resources/skills';
+        $this->nativeSkillsDir = $nativeSkillsDir ?? \dirname(__DIR__).DIRECTORY_SEPARATOR.'Resources'.DIRECTORY_SEPARATOR.'skills';
     }
 
     /**
@@ -81,7 +81,7 @@ class SkillResolver
 
     private function loadSkill(string $filename): ?string
     {
-        $path = $this->nativeSkillsDir.'/'.$filename;
+        $path = $this->nativeSkillsDir.DIRECTORY_SEPARATOR.$filename;
 
         if (!file_exists($path)) {
             return null;

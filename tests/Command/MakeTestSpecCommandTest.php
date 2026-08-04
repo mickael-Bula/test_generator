@@ -28,7 +28,7 @@ final class MakeTestSpecCommandTest extends TestCase
     {
         $this->filesystem = new Filesystem();
         $this->tempDir = sys_get_temp_dir().'/test_'.bin2hex(random_bytes(8));
-        $this->filesystem->mkdir($this->tempDir.'/templates');
+        $this->filesystem->mkdir($this->tempDir.'/spec-templates');
 
         $command = new MakeTestSpecCommand($this->tempDir);
         $this->commandTester = new CommandTester($command);
@@ -44,7 +44,7 @@ final class MakeTestSpecCommandTest extends TestCase
     {
         // ÉTANT DONNÉ
         $this->filesystem->dumpFile(
-            $this->tempDir.'/templates/test_spec_class_template.md',
+            $this->tempDir.'/spec-templates/test_spec_class_template.md',
             '# Spec {className} ({methodName})'
         );
 
@@ -65,7 +65,7 @@ final class MakeTestSpecCommandTest extends TestCase
     {
         // ÉTANT DONNÉ
         $this->filesystem->dumpFile(
-            $this->tempDir.'/templates/test_spec_template.md',
+            $this->tempDir.'/spec-templates/test_spec_template.md',
             '# Spec {className}::{methodName}'
         );
 
@@ -101,7 +101,7 @@ final class MakeTestSpecCommandTest extends TestCase
     {
         // ÉTANT DONNÉ
         $this->filesystem->dumpFile(
-            $this->tempDir.'/templates/test_spec_class_template.md',
+            $this->tempDir.'/spec-templates/test_spec_class_template.md',
             '# Spec {className}'
         );
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Resolver;
 
 use App\Resolver\SpecResolver;
+use App\Service\SpecTemplateCleaner;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\MockObject\Exception;
@@ -26,7 +27,13 @@ final class SpecResolverTest extends TestCase
         $this->projectDir = sys_get_temp_dir().'/spec_resolver_test_'.uniqid('', true);
         mkdir($this->projectDir, 0777, true);
 
-        $this->specResolver = new SpecResolver($this->projectDir);
+        $specTemplateCleanerMock = $this->createMock(SpecTemplateCleaner::class);
+
+        // Configure le mock pour retourner l'argument transmis
+        $specTemplateCleanerMock->method('cleanForLlm')
+            ->willReturnCallback(fn (?string $content) => $content);
+
+        $this->specResolver = new SpecResolver($this->projectDir, $specTemplateCleanerMock);
     }
 
     protected function tearDown(): void

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Resolver;
 
+use App\Service\SpecTemplateCleaner;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Finder\Finder;
 use Symfony\Component\Finder\SplFileInfo;
@@ -12,6 +13,7 @@ readonly class SpecResolver
 {
     public function __construct(
         private string $projectDir,
+        private SpecTemplateCleaner $specTemplateCleaner,
     ) {
     }
 
@@ -30,14 +32,18 @@ readonly class SpecResolver
             $conventionName = $shortClassName.'Spec.md';
             $content = $this->resolveByFinderSearch($conventionName, $conventionName, $io);
 
-            if (null === $content && null !== $io) {
-                $io->warning(sprintf(
+            if (null === $content) {
+                // Affiche un message uniquement si l'option a été appelée depuis la commande
+                $io?->warning(sprintf(
                     'Option --spec présente sans valeur, mais aucun fichier "%s" n\'a été trouvé dans le projet.',
                     $conventionName
                 ));
+
+                return null;
             }
 
-            return $content;
+            // Appel du service de suppression des balises HTML dans les fichiers Markdown.
+            return $this->specTemplateCleaner->cleanForLlm($content);
         }
 
         if ('' === trim($specOption)) {
@@ -53,7 +59,8 @@ readonly class SpecResolver
             ?? $this->resolveByFinderSearch($normalizedOption, $specOption, $io);
 
         if (null !== $content) {
-            return $content;
+            // Appel du service de suppression des balises HTML dans les fichiers Markdown.
+            return $this->specTemplateCleaner->cleanForLlm($content);
         }
 
         // Si aucun fichier n'a été trouvé, on émet un avertissement si l'entrée ressemblait à un fichier
